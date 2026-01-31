@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+.env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data artifacts (keep raw tracked)
+/data/interim/
+/data/processed/
+/data/outputs/
+
+# OS files
+.DS_Store
