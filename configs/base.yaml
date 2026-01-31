@@ -1,0 +1,12 @@
+root_dir: .
+data_dir: data
+raw_dir: raw
+interim_dir: interim
+processed_dir: processed
+outputs_dir: outputs
+seasons:
+  start: 2005
+  end: 2022
+min_week: 7
+max_week: 20
+window_weeks: 6

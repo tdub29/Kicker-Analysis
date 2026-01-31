@@ -1,0 +1,5 @@
+nfl_data_py>=0.3.2
+numpy>=1.25
+pandas>=2.0
+pyyaml>=6.0
+scikit-learn>=1.3
