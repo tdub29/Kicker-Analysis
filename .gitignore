@@ -10,10 +10,25 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 
-# Data artifacts (keep raw tracked)
+# Derived data. Every one of these is rebuilt by the scripts in src/, so
+# tracking them would put 100+ MB of re-downloadable cache in the history for
+# no benefit. `python src/kicker_analysis/build_dataset.py` refetches and
+# rebuilds from scratch.
+/data/external/
 /data/interim/
 /data/processed/
 /data/outputs/
 
+# Backtest artifacts. The small CSVs ARE tracked, because they are the evidence
+# behind the numbers in METHOD.md and a reader should not have to re-run an
+# eight-fold backtest to check a claim. The parquet prediction dumps are not:
+# they are large and regenerable from the same command.
+/reports/*.parquet
+
 # OS files
 .DS_Store
+Thumbs.db
+
+# Local agent tooling, not part of the project.
+.ignore
+.agents/

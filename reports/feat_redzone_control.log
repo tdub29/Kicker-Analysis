@@ -1,0 +1,39 @@
+  seed 1 fold 2019 done
+  seed 1 fold 2020 done
+  seed 1 fold 2022 done
+  seed 1 fold 2023 done
+  seed 1 fold 2024 done
+  seed 1 fold 2025 done
+  seed 2 fold 2019 done
+  seed 2 fold 2020 done
+  seed 2 fold 2022 done
+  seed 2 fold 2023 done
+  seed 2 fold 2024 done
+  seed 2 fold 2025 done
+  seed 3 fold 2019 done
+  seed 3 fold 2020 done
+  seed 3 fold 2022 done
+  seed 3 fold 2023 done
+  seed 3 fold 2024 done
+  seed 3 fold 2025 done
+
+Pooled MAE, weighted by games:
+  base            3.6185
+  +all rz (real)  3.5708  delta -0.0477
+  +27 shuffled s1  3.5990  delta -0.0195   Spearman 0.0854
+  +27 shuffled s2  3.5828  delta -0.0357   Spearman 0.1132
+  +27 shuffled s3  3.6207  delta +0.0022   Spearman 0.0848
+  +27 shuffled avg 3.6008  delta -0.0177
+
+Combined gain share of all 27 red-zone columns: 0.301 of 1.000 across 100 features (27/100 = 0.270 would be neutral)
+Red-zone columns by gain:
+  #  4 of 100   rzd_fg_rate_l16          gain 0.0201
+  #  5 of 100   rzd_fg_rate_career       gain 0.0199
+  #  8 of 100   rz_fg_rate_l16           gain 0.0181
+  # 11 of 100   rzd_td_rate_l8           gain 0.0169
+  # 15 of 100   rzd_fg_rate_l8           gain 0.0151
+  # 18 of 100   rzd_td_rate_career       gain 0.0145
+  # 19 of 100   rz10_td_rate_l16         gain 0.0144
+  # 20 of 100   rzd_td_rate_l16          gain 0.0143
+  # 23 of 100   rz_td_rate_l8            gain 0.0139
+  # 25 of 100   rz_td_rate_l16           gain 0.0138
