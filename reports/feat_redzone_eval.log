@@ -1,0 +1,47 @@
+5,229 kicker-games, 73 base features, 27 red-zone features, coverage 0.994
+
+  fold 2019: train 2021, test 506
+  fold 2020: train 2527, test 513
+  fold 2021 skipped: 0 games in the data
+  fold 2022: train 3040, test 540
+  fold 2023: train 3580, test 537
+  fold 2024: train 4117, test 542
+  fold 2025: train 4659, test 536
+
+Per season MAE:
+set       base  +composite  +raw pair  +all rz
+season                                        
+2019    3.3824      3.3836     3.3407   3.3709
+2020    3.5076      3.4941     3.5739   3.5203
+2022    3.5379      3.5756     3.5277   3.5135
+2023    3.6899      3.6538     3.6742   3.6033
+2024    3.8423      3.8198     3.8180   3.7395
+2025    3.7308      3.7053     3.7032   3.6622
+
+Per season Spearman:
+set       base  +composite  +raw pair  +all rz
+season                                        
+2019    0.1117      0.1244     0.1302   0.1216
+2020    0.1468      0.1458     0.1055   0.1240
+2022    0.0345      0.0068     0.0410   0.0451
+2023    0.0464      0.0756     0.0708   0.0898
+2024    0.0441      0.0628     0.0597   0.1104
+2025    0.1141      0.1302     0.1253   0.1507
+
+Pooled (weighted by games):
+               mae  spearman   games
+set                                 
+base        3.6185    0.0821  3174.0
++composite  3.6086    0.0901  3174.0
++raw pair   3.6094    0.0881  3174.0
++all rz     3.5708    0.1066  3174.0
+
+Paired over the 6 folds, against base (negative dMAE = the red-zone features help):
+  +composite  dMAE -0.0098  better 4/6  t=-0.907 p=0.406  wilcoxon p=0.562
+              dSpearman +0.0080  better 4/6
+  +raw pair   dMAE -0.0089  better 5/6  t=-0.565 p=0.597  wilcoxon p=0.438
+              dSpearman +0.0058  better 5/6
+  +all rz     dMAE -0.0468  better 5/6  t=-2.506 p=0.054  wilcoxon p=0.094
+              dSpearman +0.0240  better 5/6
+
+wrote reports\feat_redzone_results.csv

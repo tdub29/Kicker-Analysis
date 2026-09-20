@@ -1,0 +1,9 @@
+5,229 rows; legstadium matched 100.0% of them
+73 baseline features, 86 with legstadium
+
+  fold 2019 done
+  fold 2020 done
+  fold 2021 skipped, 0 rows in the dataset
+  fold 2022 done
+  fold 2023 done
+  fold 2024 done
