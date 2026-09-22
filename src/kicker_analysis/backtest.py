@@ -32,7 +32,7 @@ from scipy.stats import spearmanr
 
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from kicker_analysis.model import CompoundKickerModel, FEATURES, load  # noqa: E402
+from kicker_analysis.model import CompoundKickerModel, RidgeRanker, FEATURES, load  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "reports"
@@ -120,6 +120,10 @@ def main() -> int:
     for s in tests:
         tr, te = df[df.season < s], df[df.season == s]
         pred = CompoundKickerModel().fit(tr).predict(te)
+        # The ridge is what ORDERS the published board, so it has to be in the
+        # table that the README points at. It was missing, which meant the
+        # headline lift could not be reproduced by the command the README gives.
+        ridge = RidgeRanker().fit(tr).predict(te)
         med = float(tr.fantasy_points.median())
         block = pd.DataFrame({
             "season": te.season.to_numpy(), "week": te.week.to_numpy(),
@@ -129,6 +133,7 @@ def main() -> int:
             "constant": med,
             "career": te.k_fantasy_points_career.fillna(med).to_numpy(),
             "implied": te.implied_total.fillna(te.implied_total.median()).to_numpy(),
+            "ridge": np.asarray(ridge, dtype=float),
         })
         for c in pred.columns:
             block[c] = pred[c].to_numpy()
@@ -136,7 +141,8 @@ def main() -> int:
     P = pd.concat(out, ignore_index=True)
 
     rows = []
-    for name, col in [("compound E[y]", "exp_points"), ("compound P(y>=15)", "p_ge_15"),
+    for name, col in [("ridge (the board)", "ridge"),
+                      ("compound E[y]", "exp_points"), ("compound P(y>=15)", "p_ge_15"),
                       ("kicker career mean", "career"), ("implied total only", "implied"),
                       ("constant 8.0", "constant")]:
         r = {"rank by": name, "rho": rho(P, col),
@@ -159,7 +165,8 @@ def main() -> int:
           f"vs {np.abs(P.y - P.constant).mean():.4f}")
 
     print("\nWeek-block bootstrap, R=2 lift:")
-    for a, b in [("exp_points", "career"), ("exp_points", "constant"),
+    for a, b in [("ridge", "implied"), ("ridge", "career"), ("ridge", "exp_points"),
+                 ("exp_points", "career"), ("exp_points", "constant"),
                  ("exp_points", "implied")]:
         c = boot_lift(P, a, b)
         print(f"  {a} vs {b:10} {c['diff']:+.4f}  95% CI [{c['lo']:+.4f}, {c['hi']:+.4f}]  p={c['p']:.4f}")
