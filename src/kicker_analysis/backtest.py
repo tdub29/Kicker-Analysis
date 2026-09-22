@@ -109,7 +109,7 @@ def boot_lift(df: pd.DataFrame, a: str, b: str, roster: int = 2, n: int = 4000) 
 
 
 def main() -> int:
-    df = load(processed=ROOT / "data" / "processed" / "_v2")
+    df = load(processed=ROOT / "data" / "processed")
     seasons = sorted(df.season.unique())
     tests = [s for s in seasons if s >= FIRST_TEST
              and df[df.season == s].week.nunique() >= MIN_WEEKS]

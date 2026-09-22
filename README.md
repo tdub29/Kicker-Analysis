@@ -110,6 +110,16 @@ findings by running code. They were right about a lot.
   merged in and all 17 were silently accepted; three were same-game outcomes, and
   they moved MAE from 3.49 to 2.65 in about five minutes. The feature set is now an
   explicit list of 16 named columns.
+- **The weekly board silently re-forecast a week that was already over.** Two
+  caches with no expiry: `fetch()` kept `games.csv` forever, so every week-2 game
+  still read as unplayed and `upcoming()` returned week 2 while the site header
+  said week 3. Underneath it, `data/processed/_v2/kicker_games.parquet` was a
+  hand-copied snapshot that **no script regenerated**, so the model trained on
+  history that stopped 30 kicker-games short. A stale board and a current one are
+  the same file with different numbers, and nothing distinguished them. Fixed at
+  the root: live inputs now expire after 6 hours, `_v2` is retired in favour of
+  the one path `build_dataset.py` writes, and `predict_week.py` refuses to build
+  a week-N board unless the training history reaches week N-1.
 - **The entire 2021 season was missing.** The upstream nflverse kicking release
   skips it and the loader only backfilled seasons after its cutoff. 561 games, and
   every metric looked healthy without them.

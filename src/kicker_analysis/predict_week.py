@@ -39,12 +39,17 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from kicker_analysis.build_dataset import RELOCATIONS  # noqa: E402
+from kicker_analysis.build_dataset import (  # noqa: E402
+    GAMES_URL, LIVE_MAX_AGE_HOURS, RELOCATIONS, fetch)
 from kicker_analysis.features import build_features  # noqa: E402
 from kicker_analysis.model import CompoundKickerModel, FEATURES, RidgeRanker  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-PROC = ROOT / "data" / "processed" / "_v2"
+# One producer, one path. `_v2` was a hand-copied snapshot that nothing
+# regenerated, so the weekly board trained on whatever Sunday the copy was
+# taken and looked current: it was 30 kicker-games short of week 2 while
+# printing a week-3 header. build_dataset.py owns this file now.
+PROC = ROOT / "data" / "processed"
 EXT = ROOT / "data" / "external"
 REPORTS = ROOT / "reports"
 SITE = pathlib.Path(
@@ -112,7 +117,10 @@ def pseudo_rows(slate: pd.DataFrame, kickers: pd.DataFrame, season: int,
 
 
 def run(week_override: int | None = None) -> pd.DataFrame:
-    games = pd.read_csv(EXT / "games.csv", low_memory=False)
+    # The upcoming slate is decided from this file, so reading a cached copy
+    # silently re-forecasts a week that is already over. Refresh it first.
+    games = pd.read_csv(fetch(GAMES_URL, "games.csv", max_age_hours=LIVE_MAX_AGE_HOURS),
+                        low_memory=False)
     for c in ("home_team", "away_team"):
         games[c] = games[c].replace(RELOCATIONS)
     hist = pd.read_parquet(PROC / "kicker_games.parquet")
@@ -125,6 +133,20 @@ def run(week_override: int | None = None) -> pd.DataFrame:
         week = week_override
         slate = games[(games.season == season) & (games.week == week)
                       & (games.game_type == "REG")].copy()
+    # The training history must reach the week before the one being forecast.
+    # It did not, and nothing said so: `_v2/kicker_games.parquet` was a frozen
+    # copy no script rebuilt, so a week-3 board trained through week 1 and
+    # looked identical to a correct one. This is the check that would have
+    # caught it in one line instead of by reading a parquet by hand.
+    done = hist[(hist.season == season) & hist.fantasy_points.notna()]
+    through = int(done.week.max()) if len(done) else 0
+    if through < week - 1:
+        raise SystemExit(
+            f"training data stops at {season} week {through} but the board is for "
+            f"week {week}. Run build_dataset.py and fourth_down.py first; a board "
+            f"built on stale history is indistinguishable from a current one.")
+    print(f"history complete through {season} week {through}")
+
     ks = current_kickers(hist, season)
     fut = pseudo_rows(slate, ks, season, week, hist)
     print(f"{season} week {week}: {len(slate)} games, {len(fut)} kickers")

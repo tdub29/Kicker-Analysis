@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+import time
 import urllib.request
 
 import numpy as np
@@ -65,12 +66,50 @@ KEEP = (["season", "week", "season_type", "player_id", "player_display_name", "t
          "pat_att", "pat_made", "pat_missed"] + BUCKETS)
 
 
-def fetch(url: str, name: str) -> pathlib.Path:
+# A finished season never changes; the one being played changes every Sunday.
+# Caching both forever is what made the week-3 board a week-2 board: games.csv
+# was three days old, so every week-2 game still read as unplayed and
+# `upcoming()` picked the slate that had already happened. Anything that can
+# still gain rows gets a short life; historical files keep the permanent cache
+# because re-downloading 28 seasons of play-by-play weekly is pure waste.
+LIVE_MAX_AGE_HOURS = 6.0
+
+
+def fetch(url: str, name: str, max_age_hours: float | None = None) -> pathlib.Path:
+    """Cached download. `max_age_hours` re-fetches a file older than that.
+
+    A failed refresh keeps the copy on disk rather than leaving nothing: a stale
+    schedule still forecasts, and no schedule does not. The staleness is printed
+    so a silently old board is not mistaken for a current one.
+    """
     CACHE.mkdir(parents=True, exist_ok=True)
     path = CACHE / name
-    if not path.exists():
+    if path.exists() and max_age_hours is not None:
+        age = (time.time() - path.stat().st_mtime) / 3600.0
+        if age > max_age_hours:
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            try:
+                urllib.request.urlretrieve(url, tmp)
+                tmp.replace(path)
+            except Exception as exc:                      # offline, 404, timeout
+                tmp.unlink(missing_ok=True)
+                print(f"  warning: could not refresh {name} ({exc}); "
+                      f"using the copy on disk, {age:.1f}h old")
+    elif not path.exists():
         urllib.request.urlretrieve(url, path)
     return path
+
+
+def current_season_files(season: int) -> None:
+    """Drop the cached artifacts for a season still being played.
+
+    Named rather than inlined because the rule is a fact about the DATA, not
+    about one caller: the current season's play-by-play gains rows every week.
+    """
+    for name in (f"pbp_{season}.parquet", "player_stats_kicking.parquet"):
+        p = CACHE / name
+        if p.exists() and (time.time() - p.stat().st_mtime) / 3600.0 > LIVE_MAX_AGE_HOURS:
+            p.unlink()
 
 
 def fantasy_points(df: pd.DataFrame) -> pd.Series:
@@ -191,7 +230,7 @@ def load_kicking() -> pd.DataFrame:
 
 
 def load_games() -> pd.DataFrame:
-    g = pd.read_csv(fetch(GAMES_URL, "games.csv"), low_memory=False)
+    g = pd.read_csv(fetch(GAMES_URL, "games.csv", max_age_hours=LIVE_MAX_AGE_HOURS), low_memory=False)
     for col in ("home_team", "away_team"):
         g[col] = g[col].replace(RELOCATIONS)
     return g
@@ -238,6 +277,15 @@ def team_game_context(games: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
+    # The season being played gains rows every Sunday, so its cached artifacts
+    # are dropped before anything reads them. Without this the board trains on
+    # whichever week the cache was first filled in and says nothing about it.
+    games_now = pd.read_csv(fetch(GAMES_URL, "games.csv",
+                                  max_age_hours=LIVE_MAX_AGE_HOURS), low_memory=False)
+    live = int(games_now[games_now.home_score.notna()].season.max())
+    current_season_files(live)
+    print(f"current season {live}: live caches older than "
+          f"{LIVE_MAX_AGE_HOURS:g}h dropped")
     print("parity check, release vs play-by-play:")
     for k, v in parity_check().items():
         print(f"  {k}: {v}")
