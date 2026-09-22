@@ -15,7 +15,7 @@ Everything else follows from that.
 
 | | |
 |---|---|
-| **data** | 14,457 kicker-games, 1999 to 2026, player grain, from nflverse |
+| **data** | 14,487 kicker-games, 1999 to 2026, player grain, from nflverse |
 | **target** | that week's actual fantasy points, from the distance buckets |
 | **ranking** | ridge on 16 named pre-kickoff features |
 | **distribution** | two Poisson count stages convolved through the scoring rule |
@@ -30,21 +30,27 @@ starts the better of the two gains 2.44 points a week.
 
 | rank by | lift, pts/wk | share of oracle |
 |---|---|---|
-| **this model** | **0.434** | **17.8%** |
+| **this model, the ridge that orders the board** | **0.442** | **18.1%** |
+| the count model's expected points | 0.362 | 14.8% |
 | Vegas implied team total alone | 0.362 | 14.8% |
 | kicker's own career average | 0.161 | 6.6% |
 | a constant 8.0 | -0.015 | -0.6% |
 
-Paired week-block bootstrap: **+0.072 over the implied total alone [+0.014, +0.130],
-p = 0.015**, and +0.273 over a career average. The edge survives choosing the
-hyperparameter honestly inside the training block (nested result 0.4322, p = 0.79
-against the fixed-alpha version).
+Paired week-block bootstrap: **+0.079 over the implied total alone [+0.023, +0.137],
+p = 0.006**, +0.280 over a career average, and +0.079 over the count model
+[+0.031, +0.127], p = 0.002. The edge survives choosing the hyperparameter
+honestly inside the training block (nested result 0.4322 against the fixed-alpha
+version, p = 0.79; that one is a separate run and is not in `backtest.py`'s
+output).
+
+Note what the second row costs. The count model's expected points is a dead heat
+with the betting line, +0.0001, p = 0.99. All of the edge is the ridge.
 
 Calibration of the distribution, which a betting line cannot give you:
 
 | threshold | predicted | realised |
 |---|---|---|
-| 15 or more points | 0.0838 | 0.0841 |
+| 15 or more points | 0.0844 | 0.0841 |
 
 Within 5% at every threshold tested.
 
@@ -59,7 +65,7 @@ pip install pandas numpy scikit-learn lightgbm pyarrow scipy
 
 python src/kicker_analysis/build_dataset.py     # 14,457 kicker-games, 1999-2026
 python src/kicker_analysis/fourth_down.py       # coach aggression, 2015-2026
-python src/kicker_analysis/backtest.py          # the numbers above
+python src/kicker_analysis/backtest.py          # the numbers above, ridge included
 python src/kicker_analysis/predict_week.py      # this week's board
 ```
 
@@ -120,6 +126,16 @@ findings by running code. They were right about a lot.
   the root: live inputs now expire after 6 hours, `_v2` is retired in favour of
   the one path `build_dataset.py` writes, and `predict_week.py` refuses to build
   a week-N board unless the training history reaches week N-1.
+- **The headline number could not be reproduced by the command that claimed
+  it.** The README said to run `backtest.py` for "the numbers above", and the
+  numbers above were the ridge's, but `backtest.py` never fit a ridge: it scored
+  the count model, the career mean, the betting line and a constant, and printed
+  those. Anyone checking would have got 0.362 where 0.434 was written and
+  reasonably concluded the repo was overselling itself. The ridge is now a row
+  in that table and in the bootstrap block, so the claim and the command agree.
+  Re-run on the refreshed data it lands slightly stronger than published, 0.442
+  against 0.434 and p = 0.006 against p = 0.015, and those are the figures now
+  in this file.
 - **The entire 2021 season was missing.** The upstream nflverse kicking release
   skips it and the loader only backfilled seasons after its cutoff. 561 games, and
   every metric looked healthy without them.
