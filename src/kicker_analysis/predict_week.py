@@ -43,6 +43,7 @@ from kicker_analysis.build_dataset import (  # noqa: E402
     GAMES_URL, LIVE_MAX_AGE_HOURS, RELOCATIONS, fetch)
 from kicker_analysis.features import build_features  # noqa: E402
 from kicker_analysis.model import CompoundKickerModel, FEATURES, RidgeRanker  # noqa: E402
+from kicker_analysis.backtest import boot_lift, decision  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 # One producer, one path. `_v2` was a hand-copied snapshot that nothing
@@ -171,9 +172,9 @@ def run(week_override: int | None = None) -> pd.DataFrame:
           f"{int(train.season.max())} week {int(train[train.season == train.season.max()].week.max())}")
 
     # Two models, each doing the job it measurably wins. Ridge orders the board
-    # (+0.072 pts/wk over the implied total, p = 0.015; +0.086 over the count
-    # model, p = 0.002). The count model supplies the distribution, where it is
-    # calibrated to within 5% at every threshold.
+    # (its edge over the implied total and the career average is recomputed from
+    # the saved backtest below, never typed in). The count model supplies the
+    # distribution, where it is calibrated to within 5% at every threshold.
     pred = CompoundKickerModel().fit(train).predict(future)
     pred["exp_points"] = RidgeRanker().fit(train).predict(future)
     out = pd.concat([future[["player_id", "player_display_name", "team", "opponent",
@@ -207,19 +208,25 @@ def run(week_override: int | None = None) -> pd.DataFrame:
 
 def write_site(df: pd.DataFrame, season: int, week: int) -> None:
     """Emit the file the Fantasy Football site loads, as window.KICKER_MODEL."""
+    # Headline claims, recomputed from the saved season-forward backtest on every run
+    # so the published note cannot drift from reports/backtest_predictions.parquet.
+    _bt = pd.read_parquet(REPORTS / "backtest_predictions.parquet")
+    vv, vc = boot_lift(_bt, "ridge", "implied"), boot_lift(_bt, "ridge", "career")
+    dec = decision(_bt, "ridge", 2)
     payload = {
         "season": season, "week": week,
         "method": "two-stage Poisson counts (FG attempts, PAT attempts) convolved "
                   "through the scoring rule into a full predictive distribution",
         "scoring": "FG 0-39 = 3, 40-49 = 4, 50+ = 5, PAT = 1, miss = 0",
         "features": FEATURES,
-        "note": "The board is ordered by a ridge on 16 pre-kickoff features, which "
-                "beats ranking on the Vegas implied total alone by 0.072 points a week "
-                "(p = 0.015) and beats a kicker's own career average by 0.273. The "
-                "probabilities come from a separate count model whose P(15+) is "
-                "calibrated to within half a percent. Expect a small edge: the oracle "
-                "who always starts the better of two kickers gains 2.44 points a week "
-                "and this captures 17.8% of that.",
+        "note": (f"The board is ordered by a ridge on 16 pre-kickoff features, which "
+                 f"beats ranking on the Vegas implied total alone by {vv['diff']:.3f} points "
+                 f"a week (p = {vv['p']:.3f}) and beats a kicker's own career average by "
+                 f"{vc['diff']:.3f}. The probabilities come from a separate count model "
+                 f"whose P(15+) is calibrated to within half a percent. Expect a small "
+                 f"edge: the oracle who always starts the better of two kickers gains "
+                 f"{dec['oracle_lift']:.2f} points a week and this captures "
+                 f"{dec['share'] * 100:.1f}% of that."),
         "kickers": [
             {
                 "id": str(r.player_id), "name": r.player_display_name,
