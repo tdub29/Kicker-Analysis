@@ -15,9 +15,9 @@ Everything else follows from that.
 
 | | |
 |---|---|
-| **data** | 14,487 kicker-games, 1999 to 2026, player grain, from nflverse |
+| **data** | 14,519 kicker-games, 1999 to 2026 week 3, player grain, from nflverse |
 | **target** | that week's actual fantasy points, from the distance buckets |
-| **ranking** | ridge on 16 named pre-kickoff features |
+| **ranking** | ridge on 16 named pre-kickoff features, all 16 non-constant |
 | **distribution** | two Poisson count stages convolved through the scoring rule |
 | **output** | a weekly board, ranked, with a calibrated `P(15+)` per kicker |
 
@@ -25,34 +25,45 @@ Everything else follows from that.
 
 Scored on the decision a manager actually makes: draw two kickers from the week's
 starters, start the one the method prefers, measure points gained against starting
-either at random. Eight season-forward folds, 2018 to 2025. The oracle who always
-starts the better of the two gains 2.44 points a week.
+either at random. Eight season-forward folds, 2018 to 2025, 141 weeks. Every lift
+is the exact expectation over every pair of starters in a week, not a simulation.
+The oracle who always starts the better of the two gains 2.46 points a week.
 
 | rank by | lift, pts/wk | share of oracle |
 |---|---|---|
-| **this model, the ridge that orders the board** | **0.442** | **18.1%** |
-| the count model's expected points | 0.362 | 14.8% |
-| Vegas implied team total alone | 0.362 | 14.8% |
-| kicker's own career average | 0.161 | 6.6% |
-| a constant 8.0 | -0.015 | -0.6% |
+| **this model, the ridge that orders the board** | **0.432** | **17.6%** |
+| the count model's expected points | 0.382 | 15.5% |
+| Vegas implied team total alone | 0.353 | 14.4% |
+| kicker's own career average | 0.180 | 7.3% |
+| a constant 8.0 | 0.000 | 0.0% |
 
-Paired week-block bootstrap: **+0.079 over the implied total alone [+0.023, +0.137],
-p = 0.006**, +0.280 over a career average, and +0.079 over the count model
-[+0.031, +0.127], p = 0.002. The edge survives choosing the hyperparameter
-honestly inside the training block (nested result 0.4322 against the fixed-alpha
-version, p = 0.79; that one is a separate run and is not in `backtest.py`'s
-output).
+Against the two things people actually do instead, one family of two tests:
 
-Note what the second row costs. The count model's expected points is a dead heat
-with the betting line, +0.0001, p = 0.99. All of the edge is the ridge.
+| ridge minus | week-block bootstrap | season-cluster bootstrap | seasons won |
+|---|---|---|---|
+| Vegas implied total alone | **+0.079 [+0.030, +0.128], p = 0.001** | [+0.008, +0.143], p = 0.028 | 6 of 8, sign test p = 0.29 |
+| kicker career average | +0.252 [+0.161, +0.341], p < 0.0001 | [+0.169, +0.348], p < 0.0001 | 8 of 8, p = 0.008 |
+
+The career-average claim holds by every test. The line claim holds in the average
+and is thin by season: the ridge loses 2019 and ties 2021, and nearly all of its
+edge is 2022 onward, when the line alone got worse. The ridge also beats the count
+model's own ranking by +0.050 [+0.005, +0.096], p = 0.026.
+
+Fourteen challengers, each tuned only on seasons before its test season, were run
+against the ridge in `notes/model-selection-2026-09-29.md`. None is distinguishable
+from it after Holm correction. The closest, the ridge plus a shrunk per-kicker
+effect, is +0.006 [-0.016, +0.027], Holm p = 1.00, ahead in 6 of 8 seasons.
+
+Note what the second row costs. The count model's expected points is a statistical
+tie with the betting line, +0.029, p = 0.19. All of the edge is the ridge.
 
 Calibration of the distribution, which a betting line cannot give you:
 
 | threshold | predicted | realised |
 |---|---|---|
-| 15 or more points | 0.0844 | 0.0841 |
+| 15 or more points | 0.0846 | 0.0841 |
 
-Within 5% at every threshold tested.
+Within 6% at every threshold tested.
 
 **Read that honestly.** The gain is real and small. Kicker is the position where
 streaming on the implied total already captures most of the available value. This
@@ -63,7 +74,7 @@ model is worth having and is not worth agonising over.
 ```bash
 pip install pandas numpy scikit-learn lightgbm pyarrow scipy
 
-python src/kicker_analysis/build_dataset.py     # 14,457 kicker-games, 1999-2026
+python src/kicker_analysis/build_dataset.py     # 14,519 kicker-games, 1999-2026
 python src/kicker_analysis/fourth_down.py       # coach aggression, 2015-2026
 python src/kicker_analysis/backtest.py          # the numbers above, ridge included
 python src/kicker_analysis/predict_week.py      # this week's board
@@ -111,11 +122,27 @@ findings by running code. They were right about a lot.
 - **Retractable roof state is a game-day decision.** `closed` and `open` never
   appear on an unplayed game. That was 15.1% of rows carrying a label that cannot
   exist at forecast time.
+- **The fix for that killed two features, and nobody noticed.** The
+  retractable flag keyed the building on a `stadium_id` the kicker table does not
+  have, fell back to the kicker's team, and since every team has played away under
+  a retractable roof, every row was retractable and no row was ever indoors. Both
+  flags were constant, so "16 features" were 14. They now come from the game's own
+  venue, and the backtest refuses to run if any of the 16 stops varying. It made no
+  measurable difference to the ranking (the pre-fix model is +0.003, p = 0.61),
+  which is exactly why it hid.
+- **The betting line is a closing line.** nflverse `spread_line` and `total_line`
+  are the numbers at kickoff, so the backtest scores a board built from them. The
+  board is valid for a lineup set close to kickoff; read on Tuesday, with an
+  earlier line, expect a little less than the table above.
+- **The lift was simulated, and the noise was the size of the effects.** The
+  harness drew 300 random pairs a week, which moved pooled lifts by 0.01 to 0.02
+  and scored a constant at -0.015. It is now computed exactly, so `backtest.py`,
+  the bake-off and the board's published note all agree to the last digit.
 - **An exclusion list is not a feature set.** The first version admitted every
   numeric column nobody had remembered to ban. During review, 17 columns were
   merged in and all 17 were silently accepted; three were same-game outcomes, and
   they moved MAE from 3.49 to 2.65 in about five minutes. The feature set is now an
-  explicit list of 16 named columns.
+  explicit list of 16 named columns, and all 16 are checked for variance.
 - **The weekly board silently re-forecast a week that was already over.** Two
   caches with no expiry: `fetch()` kept `games.csv` forever, so every week-2 game
   still read as unplayed and `upcoming()` returned week 2 while the site header
@@ -134,8 +161,8 @@ findings by running code. They were right about a lot.
   reasonably concluded the repo was overselling itself. The ridge is now a row
   in that table and in the bootstrap block, so the claim and the command agree.
   Re-run on the refreshed data it lands slightly stronger than published, 0.442
-  against 0.434 and p = 0.006 against p = 0.015, and those are the figures now
-  in this file.
+  against 0.434 and p = 0.006 against p = 0.015. Both were later superseded by
+  the exact lift and the roof-flag fix: 0.432 and p = 0.001, the figures above.
 - **The entire 2021 season was missing.** The upstream nflverse kicking release
   skips it and the loader only backfilled seasons after its cutoff. 561 games, and
   every metric looked healthy without them.
@@ -143,7 +170,9 @@ findings by running code. They were right about a lot.
 ## Things that did not work, kept because a null result is a result
 
 Three feature families were built and each was attacked by a separate reviewer.
-All three were refuted, and re-testing under a properly regularised ridge agreed:
+All three were refuted, and re-testing under a properly regularised ridge agreed.
+This table predates the roof-flag fix and the exact lift, so its baseline is the
+14 live columns scored by simulation; the conclusion does not depend on either:
 
 | added to the 16 | MAE | within-week rho | decision lift |
 |---|---|---|---|

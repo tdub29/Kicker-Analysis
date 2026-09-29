@@ -1,4 +1,12 @@
-"""Features, rebuilt so that everything is knowable on Tuesday.
+"""Features, rebuilt so that every input exists before kickoff.
+
+Decision time T is a lineup set CLOSE TO KICKOFF, not Tuesday. The market
+columns (implied_total, opp_implied_total, total_line, closeness) are built from
+nflverse `spread_line` and `total_line`, which are closing lines, so the
+backtest scores a board built from the number as it stands at kickoff. That is
+the board this is valid for. Read on Tuesday it uses an earlier line and should
+expect a little less than the backtest shows. Everything else below is fixed
+well before then: lagged results, coach history, the building and its climate.
 
 Version one passed a leakage self-check and still could not be deployed. The
 self-check proved the rolling windows were lagged correctly, which they were, and
@@ -16,16 +24,24 @@ What changed and why:
       entirely cost -0.002. The signal is real but thin, and it was being paid
       for with a column that does not exist at forecast time.
   stadium climate replaces them.
-      A venue's typical wind and temperature in a given month IS knowable on
-      Tuesday, computed from PRIOR seasons only. Soldier Field in December is a
+      A venue's typical wind and temperature in a given month IS knowable in
+      advance, computed from PRIOR seasons only. Soldier Field in December is a
       fact about the stadium, not about Sunday. This keeps the honest part of the
       weather signal and discards the part that was cheating.
-  roof is collapsed to what is known in advance.
+  roof is collapsed to what is known in advance, from the game's own venue.
       `closed` and `open` are game-day decisions: across the whole file neither
       value ever appears on an unplayed game, so 792 of 5,229 modelling rows
-      (15.1%) carried a label that cannot exist at forecast time. A retractable
-      roof is now flagged as retractable, which is a property of the building.
-      The old `is_dome` also silently scored a NaN roof as outdoors.
+      (15.1%) carried a label that cannot exist at forecast time. Both now map
+      to "retractable", a property of the building, and the day's setting is
+      thrown away. The old `is_dome` also silently scored a NaN roof as outdoors.
+  the roof flags were dead until 2026-09-29.
+      The first version keyed the building on `stadium_id`, which kicker_games
+      does not carry, so it fell back to the kicker's TEAM. Every team has played
+      away under a retractable roof, so every row was flagged retractable, no row
+      was ever indoors for certain, and both columns had sd 0: the "16 features"
+      were 14. The type now comes from the game's own `roof` field, and for an
+      unplayed game, whose roof is still blank, from a stadium table keyed on
+      that game's `stadium_id` and built from played games only.
   the two calendar clocks are gone.
       `t_games_prior` and `opp_d_games_prior` correlate with `season` at 0.992.
       `season` is deliberately banned as a feature and these reintroduced it: in
@@ -61,10 +77,14 @@ SERVE_TIME_UNAVAILABLE = ["temp", "wind", "wind_outdoor", "is_dome",
 FOURTH_COLS = ["fourth_in_range", "fourth_fg", "fourth_go", "fourth_mean_togo",
                "fg_share", "go_rate"]
 
-# Venues whose roof can be shut on the day. Derived from the data rather than
-# hardcoded, but the list is stable and worth naming for the reader.
+# Venues whose roof can be shut on the day. `open` and `closed` are the day's
+# setting, decided on game day, so both collapse to the building's type.
 RETRACTABLE_ROOFS = {"closed", "open"}
-FIXED_DOME = {"dome"}
+ROOF_TYPE = {"dome": "dome", "outdoors": "outdoors",
+             "open": "retractable", "closed": "retractable"}
+# Neutral sites on the 2026 schedule with no played game in games.csv, so the
+# table cannot learn them: the Bernabeu roof retracts, the Maracana has none.
+STADIUM_TYPE_KNOWN = {"MAD01": "retractable", "RIO00": "outdoors"}
 
 
 def _lagged(df: pd.DataFrame, group: str, cols: list[str], prefix: str,
@@ -113,31 +133,63 @@ def stadium_climate(games: pd.DataFrame) -> pd.DataFrame:
                 "venue_wind_climate", "venue_climate_n"]]
 
 
-def roof_flags(df: pd.DataFrame) -> pd.DataFrame:
+def stadium_types(games: pd.DataFrame) -> dict:
+    """stadium_id -> dome | retractable | outdoors, from PLAYED games only.
+
+    Only a played game carries a roof value, so for an unplayed game this table
+    is built entirely from the past. No stadium in 1999 to 2026 reports two
+    different types, so the table and the per-game field never disagree.
+    """
+    g = games.dropna(subset=["stadium_id", "roof"])
+    kind = g.roof.map(ROOF_TYPE).groupby(g.stadium_id).agg(
+        lambda s: "retractable" if s.eq("retractable").any() else s.iloc[-1])
+    return {**kind.dropna().to_dict(), **STADIUM_TYPE_KNOWN}
+
+
+def roof_flags(df: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.DataFrame:
     """Roof, as known before the game rather than as it turned out.
 
-    A retractable stadium is identified by ever having reported open or closed.
-    That identity is a property of the building, so it is available in advance,
-    whereas the day's setting is not.
+    The type is a property of the game's venue. A played game's own `roof`
+    field says it (open and closed both mean retractable); an unplayed game at a
+    retractable carries no roof yet, so its type comes from the stadium table
+    keyed on that game's stadium_id. A retractable is neither indoors for
+    certain nor open-air: the model learns that those games are usually but not
+    always sheltered rather than being told the wrong answer either way.
     """
     d = df.copy()
-    venue = d.get("stadium_id")
-    if venue is None:
-        venue = d.get("stadium")
-    d["_venue"] = venue.fillna(d.team) if venue is not None else d.team
-    retract = set(d.loc[d.roof.isin(RETRACTABLE_ROOFS), "_venue"].dropna().unique())
-    d["is_fixed_dome"] = d.roof.isin(FIXED_DOME).astype(int)
-    d["is_retractable"] = d["_venue"].isin(retract).astype(int)
-    # Indoors-for-certain means a fixed dome. A retractable is its own state,
-    # because the model should learn that those games are usually but not always
-    # sheltered rather than being told the wrong answer either way.
-    d["is_indoor_certain"] = ((d.is_fixed_dome == 1) & (d.is_retractable == 0)).astype(int)
-    return d.drop(columns=["_venue"])
+    kind = d.roof.map(ROOF_TYPE)
+    src = games if games is not None else d
+    if kind.isna().any() and {"stadium_id", "roof"} <= set(src.columns):
+        venue = (d.stadium_id if "stadium_id" in d.columns else
+                 d.game_id.map(src.drop_duplicates("game_id").set_index("game_id").stadium_id))
+        kind = kind.fillna(venue.map(stadium_types(src)))
+    # ponytail: a venue with no roof history is scored open-air; name it in
+    # STADIUM_TYPE_KNOWN when the schedule adds one.
+    kind = kind.fillna("outdoors")
+    d["is_indoor_certain"] = kind.eq("dome").astype(int)
+    d["is_retractable"] = kind.eq("retractable").astype(int)
+    return d
+
+
+def check_roof(feats: pd.DataFrame) -> None:
+    """On real data, the dead-flag bug cannot come back silently.
+
+    Both flags must vary, a fixed dome's rows must be indoors, an open-air row
+    can never be retractable, and a dome team's home games (Detroit, New
+    Orleans; the odd London "home" game is outdoors) must be indoors.
+    """
+    for c in ("is_indoor_certain", "is_retractable"):
+        assert feats[c].std() > 0, f"{c} is constant"
+    assert feats.loc[feats.roof.eq("dome"), "is_indoor_certain"].eq(1).all()
+    assert feats.loc[feats.roof.isin(RETRACTABLE_ROOFS), "is_retractable"].eq(1).all()
+    assert feats.loc[feats.roof.eq("outdoors"), ["is_indoor_certain", "is_retractable"]].eq(0).all().all()
+    home = feats[feats.is_home.eq(1) & feats.team.isin(["DET", "NO"])]
+    assert home.is_indoor_certain.mean() > 0.9, home.is_indoor_certain.mean()
 
 
 def build_features(df: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.DataFrame:
     d = df.sort_values(["season", "week", "player_id"]).reset_index(drop=True)
-    d = roof_flags(d)
+    d = roof_flags(d, games)
 
     kicker = _lagged(d.sort_values(["player_id", "season", "week"]),
                      "player_id", ["fantasy_points", "fg_att", "fg_made",
@@ -229,8 +281,8 @@ def feature_columns(df: pd.DataFrame) -> list[str]:
 def self_check() -> int:
     d = pd.DataFrame({
         "player_id": ["a"] * 5 + ["b"] * 3,
-        "team": ["KC"] * 5 + ["BAL"] * 3,
-        "opponent": ["BAL"] * 5 + ["KC"] * 3,
+        "team": ["KC"] * 5 + ["NO"] * 3,
+        "opponent": ["NO"] * 5 + ["KC"] * 3,
         "season": [2024] * 8, "week": [1, 2, 3, 4, 5, 1, 2, 3],
         "game_id": [f"g{i}" for i in range(8)],
         "fantasy_points": [10.0, 20.0, 30.0, 40.0, 50.0, 1.0, 2.0, 3.0],
@@ -257,13 +309,22 @@ def self_check() -> int:
         assert banned not in cols, banned
     assert "fantasy_points" not in cols
     assert "implied_total" in cols
-    # A retractable venue is flagged by the building, not by Sunday's setting, so
-    # every S1 row carries it even though only one of them reported `closed`.
-    s1 = f[f.stadium_id == "S1"]
-    assert (s1.is_retractable == 1).all(), s1.is_retractable.tolist()
-    assert (s1.is_indoor_certain == 0).all()
-    s2 = f[f.stadium_id == "S2"]
-    assert (s2.is_indoor_certain == 1).all()
+    # The dome team is indoors, the closed-roof game is retractable and not
+    # indoors, and neither flag is constant: the bug that made both dead.
+    assert (f[f.team == "NO"].is_indoor_certain == 1).all()
+    assert f.loc[f.roof == "closed", ["is_retractable", "is_indoor_certain"]].values.tolist() == [[1, 0]]
+    check_roof(f)
+    # The flags come from the GAME'S venue. Open and closed are the same
+    # building; an unplayed game (blank roof) takes its type from the stadium
+    # table; a neutral site with no history comes from the named table.
+    gid = [f"r{i}" for i in range(6)]
+    roofs = ["dome", "outdoors", "open", "closed", None, None]
+    r = roof_flags(pd.DataFrame({"game_id": gid, "roof": roofs}),
+                   games=pd.DataFrame({"game_id": gid, "roof": roofs,
+                                       "stadium_id": ["NOR00", "KAN00", "ATL97",
+                                                      "ATL97", "ATL97", "MAD01"]}))
+    assert r.is_indoor_certain.tolist() == [1, 0, 0, 0, 0, 0], r.is_indoor_certain.tolist()
+    assert r.is_retractable.tolist() == [0, 0, 1, 1, 1, 1], r.is_retractable.tolist()
 
     # Two kickers in ONE team-game must not become each other's previous game.
     dup = pd.DataFrame({

@@ -15,6 +15,11 @@ can start, so that is what is measured:
   rho        within-week Spearman, the ordering the lift comes from.
   MAE        kept, demoted, never sorted on.
 
+Every one of those is computed EXACTLY, not simulated. The first harness drew
+300 random rosters a week, which added noise to every comparison and even gave a
+constant a lift of -0.015. The expectation over every R-subset of the week has a
+closed form (see _pick_probs), so there is nothing to simulate.
+
 Intervals are a week-block bootstrap. Weeks are the unit because rows inside one
 share a slate, a weather system and a set of opponents.
 
@@ -22,49 +27,58 @@ share a slate, a weather system and a set of opponents.
 """
 from __future__ import annotations
 
+import os
 import pathlib
 import sys
 import warnings
 
 import numpy as np
 import pandas as pd
+from scipy.special import comb
 from scipy.stats import spearmanr
 
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from kicker_analysis.features import check_roof  # noqa: E402
 from kicker_analysis.model import CompoundKickerModel, RidgeRanker, FEATURES, load  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "reports"
 FIRST_TEST = 2018
 MIN_WEEKS = 8
-N_DRAWS = 300
 SEED = 0
 
 
+def _pick_probs(s: np.ndarray, roster: int) -> np.ndarray:
+    """P(row i is the pick) when `roster` rows are drawn uniformly from the week
+    and the one with the highest score is started, ties split evenly (which is
+    what argmax over a randomly ordered draw does). Row i is picked when the
+    other roster-1 are all at or below it, and it wins a t-way tie 1/(t+1)."""
+    lower = (s[None, :] < s[:, None]).sum(axis=1)
+    tied = (s[None, :] == s[:, None]).sum(axis=1) - 1
+    p = sum(comb(tied, t) * comb(lower, roster - 1 - t) / (t + 1) for t in range(roster))
+    return p / comb(len(s), roster)
+
+
 def per_week_lift(df: pd.DataFrame, col: str, roster: int, seed: int = SEED):
-    """Per-WEEK lift, ceiling rate and oracle lift, computed once.
+    """Per-WEEK lift, ceiling rate, oracle lift and random ceiling rate, exact.
 
     Returned per week rather than averaged, because the week is the resampling
-    unit and the statistic is a mean over weeks. Bootstrapping this array is
-    identical to re-running the simulation on a resampled set of weeks, and it is
-    three orders of magnitude cheaper: the old version re-ran 300 draws across
-    every week inside every one of 400 resamples, for each of three comparisons.
+    unit and the statistic is a mean over weeks. `seed` is kept for callers and
+    unused: nothing here is random any more.
     """
-    rng = np.random.default_rng(seed)
     lift, ceil, orac, rndc = [], [], [], []
-    for _, g in df.groupby(["season", "week"], sort=True):
+    # Four columns only: iterating groups of a wide frame is 10x slower.
+    for _, g in df[["season", "week", "y", col]].groupby(["season", "week"], sort=True):
         if len(g) < roster:
             continue
-        y, p = g.y.to_numpy(), g[col].to_numpy()
-        n = len(g)
-        idx = np.array([rng.choice(n, roster, replace=False) for _ in range(N_DRAWS)])
-        picks, preds = y[idx], p[idx]
-        chosen = picks[np.arange(N_DRAWS), preds.argmax(axis=1)]
-        lift.append(chosen.mean() - picks.mean())
-        ceil.append((chosen >= 15).mean())
-        rndc.append((picks >= 15).mean())
-        orac.append(picks.max(axis=1).mean() - picks.mean())
+        y, s = g.y.to_numpy(float), g[col].to_numpy(float)
+        assert np.isfinite(s).all(), f"{col} has a missing score"
+        p, o = _pick_probs(s, roster), _pick_probs(y, roster)
+        lift.append(p @ y - y.mean())
+        ceil.append(p @ (y >= 15))
+        orac.append(o @ y - y.mean())
+        rndc.append((y >= 15).mean())
     return (np.array(lift), np.array(ceil), np.array(orac), np.array(rndc))
 
 
@@ -88,12 +102,11 @@ def rho(df: pd.DataFrame, col: str) -> float:
     return float(np.mean(vals)) if vals else np.nan
 
 
-def boot_lift(df: pd.DataFrame, a: str, b: str, roster: int = 2, n: int = 4000) -> dict:
+def boot_lift(df: pd.DataFrame, a: str, b: str, roster: int = 2, n: int = 10000) -> dict:
     """Paired week-block bootstrap of the difference in mean weekly lift.
 
-    Paired on the WEEK: both rankings are evaluated on the same weeks and the
-    same random opponent draws, so the comparison is not polluted by which weeks
-    happened to be easy.
+    Paired on the WEEK: both rankings are evaluated on the same weeks, so the
+    comparison is not polluted by which weeks happened to be easy.
     """
     la, _, _, _ = per_week_lift(df, a, roster)
     lb, _, _, _ = per_week_lift(df, b, roster)
@@ -113,7 +126,11 @@ def main() -> int:
     seasons = sorted(df.season.unique())
     tests = [s for s in seasons if s >= FIRST_TEST
              and df[df.season == s].week.nunique() >= MIN_WEEKS]
-    print(f"{len(df):,} kicker-games, {len(FEATURES)} named features")
+    check_roof(df)
+    live = [f for f in FEATURES if df[f].std() > 0]
+    assert len(live) == len(FEATURES), sorted(set(FEATURES) - set(live))
+    print(f"{len(df):,} kicker-games, {len(FEATURES)} named features, "
+          f"{len(live)} non-constant")
     print(f"test seasons: {[int(s) for s in tests]}\n")
 
     out = []
@@ -180,7 +197,10 @@ def main() -> int:
               f"ratio {pred_rate / real_rate:.3f}")
 
     REPORTS.mkdir(parents=True, exist_ok=True)
-    P.to_parquet(REPORTS / "backtest_predictions.parquet", index=False)
+    # predict_week reads this file, possibly while this runs: write, then swap.
+    tmp = REPORTS / "backtest_predictions.parquet.tmp"
+    P.to_parquet(tmp, index=False)
+    os.replace(tmp, REPORTS / "backtest_predictions.parquet")
     t.to_csv(REPORTS / "backtest_summary.csv", index=False)
     print(f"\nwrote reports/backtest_summary.csv and backtest_predictions.parquet")
     return 0

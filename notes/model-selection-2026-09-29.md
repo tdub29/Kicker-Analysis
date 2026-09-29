@@ -1,191 +1,251 @@
 # Why this model: the kicker ranker bake-off, 2026-09-29
 
+Corrected the same day after review. The first version of this note had two dead
+features in the shipped model, scored its outer folds with a noisy simulation, and
+put the challengers and the old baseline claims in one multiplicity family. All
+three are fixed below and every number here is from the corrected run.
+
 ## The answer
 
-The board is ordered by a ridge regression on 16 named pre-kickoff features
-because nothing tried here beats it. Fourteen challengers were run through the
-same eight season-forward folds (2018 to 2025), each tuned only on seasons before
-its test season, and scored on the decision a manager actually makes: start the
-better of two kickers drawn from the week. Not one has a higher pooled lift than
-the ridge's 0.4415 points a week. The closest, a nested blend of the ridge's rank
-and the Vegas implied total's rank, sits 0.001 behind (95% CI -0.022 to +0.021).
-The count-data GLMs, a Vegas-anchored residual ridge, a pairwise ranker and a
-nested alpha all land within 0.01, and the nonlinear models (splines, a monotone
-depth-2 GBM, LightGBM lambdarank) lose 0.03 to 0.05. After Holm correction across
-18 comparisons no challenger is distinguishable from the ridge, and none beats it
-in more than 4 of 8 seasons against the 6 required. Where they tie, the ridge wins
-the tiebreaker: it is the simplest candidate, with one fixed hyperparameter and
-coefficients whose main signs hold in 8 of 8 folds, and every point estimate says
-the extra machinery costs a little rather than earning anything. The caveat is the
-size of the prize. The ridge beats ranking by the line alone by 0.080 points a week
-(p = 0.005, 7 of 8 seasons), about 3% of what an oracle gets, and that edge is the
-one number here that would not survive treating this whole bake-off as a single
-family of tests (Holm p = 0.08).
+The board is ordered by a ridge regression on 16 named pre-kickoff features, now
+16 that actually vary, because nothing tried here beats it. Fourteen challengers
+ran through the same eight season-forward folds (2018 to 2025), each tuned only
+on seasons before its test season, and scored on the decision a manager actually
+makes: start the better of two kickers drawn from the week, measured as an exact
+expectation over every pair rather than a simulation. The best challenger by
+lift, the ridge plus a shrunk per-kicker effect, is 0.006 points a week ahead
+(95% CI -0.016 to +0.027, Holm p = 1.00) and wins 6 of 8 seasons: it clears the
+fold rule and fails the significance rule, so it does not win. No challenger is
+distinguishable from the ridge after Holm correction across the 14. Where they
+tie, the ridge wins the tiebreaker: the simplest candidate, one fixed
+hyperparameter, and coefficients whose main signs hold in 8 of 8 folds.
+
+The size of the prize is the caveat. The ridge beats ranking by the Vegas implied
+total alone by **0.079 points a week (95% CI +0.030 to +0.128, p = 0.001)**, about
+3% of what an oracle gets. That survives its own family's Holm correction (p =
+0.001) and a season-cluster bootstrap (CI +0.008 to +0.143, p = 0.028), but the
+ridge beats the line in only **6 of 8 seasons**, and a sign test cannot tell 6 of 8
+from a coin (p = 0.29). The honest read: a small edge that is consistent in the
+average and not yet established season by season.
+
+## What the reviewer found, and what changed
+
+1. **Two of the 16 features were dead.** `is_indoor_certain` was 0 and
+   `is_retractable` was 1 on every row. `features.roof_flags` looked for a
+   `stadium_id` the kicker table does not carry, fell back to the kicker's TEAM
+   as the venue, and since every team has played away under a retractable roof,
+   every row was flagged retractable. The scaler zeroed both columns, so the live
+   model had 14 features while every document said 16. Fixed in `features.py`:
+   the type now comes from the game's own venue, the per-game `roof` field (dome,
+   outdoors, or open/closed collapsed to retractable because the setting is a
+   game-day decision), and for an unplayed game, whose roof is still blank, from a
+   stadium table keyed on that game's `stadium_id` and built from played games
+   only. Both flags now have sd 0.36. `features.check_roof` fails the backtest if
+   either goes constant again or a dome team's home games stop reading indoors.
+   **Effect on the ranking: none measurable.** The pre-fix model is now a
+   challenger, and it is 0.003 ahead of the fixed one (p = 0.61). The fix is for
+   honesty, not lift.
+2. **The outer folds were scored by simulation.** Tuning used the exact pairwise
+   lift but the outer score used `backtest.py`'s 300 random draws a week, which
+   moved pooled lifts by 0.01 to 0.02: measured, 0.009 on the line alone, 0.018 on
+   the career average and 0.015 on a constant, which it scored at -0.015 when the
+   exact value is 0. Per fold it was worse: it stretched the pre-fix ridge's 2021
+   margin over the line from an exact 0.009 to 0.095. The harness itself is now exact (`backtest._pick_probs`, the closed form for
+   any roster size), so `backtest.py`, this bake-off and the board's published
+   note all compute the same number. The self-check proves it against brute-force
+   enumeration of every roster, with ties.
+3. **One Holm family mixed two questions.** The old run put the 14 challengers and
+   the four reference rows in one family of 18, so the pre-existing claim that the
+   ridge beats the line was penalised for questions asked after it and came out at
+   Holm p = 0.08. Now there are two families fixed in advance: the 14 challengers
+   against the ridge, and the two claims the README already made (ridge vs the
+   line, ridge vs a career average). The compound model and the constant are
+   reported unadjusted, as description.
+4. **141 weeks are not 141 independent draws.** The ridge's own lift runs from
+   0.19 to 0.61 by season, so the week-block bootstrap overstates certainty about
+   anything that varies by season. The baseline family now also gets a
+   season-cluster bootstrap (whole seasons resampled) and a sign test across the
+   eight seasons. That is where the "6 of 8, p = 0.29" above comes from.
+5. **"Knowable on Tuesday" was false for the most important feature.** The
+   implied total, the total line and closeness come from nflverse closing lines.
+   The board is valid for a lineup set close to kickoff, with the line as it stands
+   then; read on Tuesday it uses an earlier line and should expect a little less
+   than the backtest shows. `features.py` and `model.py` now say so.
 
 ## Setup, fixed before the run
 
-- **Data.** 5,794 regular-season kicker-games, 2015 to 2026, built by `model.load()`.
-  Test seasons 2018 to 2025 (2026 has two weeks and is excluded by the harness's
-  8-week rule): 4,211 test rows, 141 weeks.
+- **Data.** 5,826 regular-season kicker-games, 2015 to 2026 week 3, built by
+  `model.load()`. Test seasons 2018 to 2025 (2026 has three weeks and is excluded
+  by the harness's 8-week rule): 4,211 test rows, 141 weeks. Rows through 2025 are
+  identical before and after the 2026 week 3 refresh (checked), and no fold trains
+  on 2026, so the refresh cannot move any number here.
 - **Nesting.** For test season s, each of the last three training seasons (two for
   2018) is used once as validation for a fit on the seasons before it. The config
   with the best mean inner score is refit on every season before s and scored once
   on s. Imputation, scaling, spline knots, pair construction, the Vegas offset and
   the empirical-Bayes variance components are all fit inside the training block.
-- **Inner score.** The exact expected R=2 lift (every pair in a week, the gain from
-  starting the one the score prefers). It is the expectation the harness simulates,
-  without the draw noise, so tuning and evaluation aim at the same number. A
-  self-check asserts the two agree.
-- **Outer score.** The repo's harness, unchanged: `backtest.decision`,
-  `per_week_lift`, `rho`, `boot_lift` (paired week-block bootstrap, 10,000 draws).
-  Rows are laid out as `backtest.py` lays them out, so the reference rows
-  reproduce its published numbers exactly: ridge 0.4415, implied 0.3620, compound
-  0.3621, career 0.1613, constant -0.0154.
-- **Win rule.** Holm-adjusted p < 0.05 against the shipped ridge at R=2, a
-  positive difference, and a higher R=2 lift in at least 6 of 8 seasons. The Holm
-  family is every row except the reference, m = 18. The fold rule alone is weak
-  (a coin wins 6 of 8 with probability 14.5%), which is why both are required.
+- **Score.** The exact expected R=2 lift, inner and outer: over every pair of
+  kickers in a week, the gain from starting the one the score prefers, ties split
+  as a coin flip. Rows are laid out as `backtest.py` lays them out, so the
+  reference rows reproduce its numbers exactly: ridge 0.4322, implied 0.3532,
+  compound 0.3818, career 0.1797, constant 0.
+- **Win rule.** Holm-adjusted p < 0.05 against the shipped ridge at R=2 within the
+  challenger family (m = 14), a positive difference, and a higher R=2 lift in at
+  least 6 of 8 seasons. The fold rule alone is weak (a coin wins 6 of 8 with
+  probability 14.5%), which is why both are required.
 
 ## Results, pooled over 8 folds
 
 Lift is points per week gained over starting a random one of R kickers; the oracle
-gets 2.440 at R=2. `diff`, CI and p are against the shipped ridge at R=2. MAE and
-calibration slope (y regressed on the prediction, 1.0 is ideal) only for models
-whose output is on the points scale.
+gets 2.458 at R=2. `diff`, CI and p are against the shipped ridge at R=2,
+week-block bootstrap, 10,000 draws. MAE and calibration slope (y regressed on the
+prediction, 1.0 is ideal) only for models whose output is on the points scale.
 
 | model | lift R=2 | share of oracle | lift R=3 | rho | MAE | cal slope | diff vs ridge | 95% CI | p | Holm p | folds won | verdict |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **ridge, 16 features, alpha 100 (shipped)** | **0.4415** | **18.1%** | **0.6405** | **0.176** | 3.467 | 0.98 | reference | | | | | |
-| rank blend ridge/implied, nested weight | 0.4403 | 18.0% | 0.6369 | 0.174 | | | -0.0013 | [-0.022, +0.021] | 0.91 | 1.00 | 2 | no difference |
-| L2 Poisson GLM | 0.4401 | 18.0% | 0.6475 | 0.176 | 3.467 | 1.01 | -0.0015 | [-0.014, +0.011] | 0.81 | 1.00 | 2 | no difference |
-| L2 Tweedie GLM | 0.4381 | 18.0% | 0.6390 | 0.174 | 3.466 | 1.05 | -0.0035 | [-0.018, +0.011] | 0.66 | 1.00 | 3 | no difference |
-| ridge, nested alpha | 0.4367 | 17.9% | 0.6342 | 0.172 | 3.468 | 1.08 | -0.0049 | [-0.023, +0.014] | 0.61 | 1.00 | 1 | no difference |
-| ridge, roof flags repaired | 0.4364 | 17.9% | 0.6445 | 0.174 | 3.469 | 0.97 | -0.0052 | [-0.018, +0.009] | 0.45 | 1.00 | 2 | no difference |
-| Vegas-anchored residual ridge | 0.4350 | 17.8% | 0.6433 | 0.175 | 3.468 | 0.97 | -0.0065 | [-0.027, +0.014] | 0.55 | 1.00 | 4 | no difference |
-| linear pairwise ranker | 0.4343 | 17.8% | 0.6389 | 0.172 | | | -0.0073 | [-0.026, +0.012] | 0.47 | 1.00 | 3 | no difference |
-| decomposed ridge (FG + PAT) | 0.4331 | 17.8% | 0.6419 | 0.174 | 3.466 | 1.11 | -0.0084 | [-0.027, +0.011] | 0.39 | 1.00 | 2 | no difference |
-| within-week demeaned ridge | 0.4258 | 17.5% | 0.6311 | 0.169 | | | -0.0158 | [-0.035, +0.004] | 0.12 | 1.00 | 1 | no difference |
-| ridge + EB kicker effect | 0.4234 | 17.4% | 0.6713 | 0.179 | 3.472 | 0.91 | -0.0181 | [-0.045, +0.008] | 0.18 | 1.00 | 3 | no difference |
-| elastic net | 0.4230 | 17.3% | 0.6262 | 0.171 | 3.472 | 1.25 | -0.0185 | [-0.050, +0.013] | 0.25 | 1.00 | 2 | no difference |
-| monotone depth-2 GBM | 0.4118 | 16.9% | 0.5850 | 0.165 | 3.473 | 0.94 | -0.0297 | [-0.073, +0.014] | 0.18 | 1.00 | 2 | no difference |
-| spline ridge (GAM-style) | 0.4107 | 16.8% | 0.5947 | 0.166 | 3.468 | 1.12 | -0.0309 | [-0.059, -0.003] | 0.031 | 0.43 | 3 | no difference |
-| LightGBM lambdarank | 0.3907 | 16.0% | 0.5591 | 0.160 | | | -0.0508 | [-0.105, +0.003] | 0.065 | 0.84 | 1 | no difference |
-| compound count model E[y] | 0.3621 | 14.8% | 0.5208 | 0.148 | 3.494 | 0.95 | -0.0794 | [-0.129, -0.030] | 0.0016 | 0.026 | 1 | ridge better |
-| Vegas implied total alone | 0.3620 | 14.8% | 0.4934 | 0.143 | | | -0.0795 | [-0.137, -0.023] | 0.0054 | 0.081 | 1 | no difference |
-| kicker career average | 0.1613 | 6.6% | 0.2877 | 0.071 | 3.571 | 0.29 | -0.2802 | [-0.375, -0.184] | <0.0001 | <0.0001 | 0 | ridge better |
-| constant (training median) | -0.0154 | -0.6% | 0.0076 | | 3.504 | | -0.4570 | [-0.551, -0.362] | <0.0001 | <0.0001 | 0 | ridge better |
+| **ridge, 16 features, alpha 100 (shipped)** | **0.4322** | **17.6%** | **0.6329** | **0.174** | 3.469 | 0.97 | reference | | | | | |
+| *challengers, Holm m = 14* | | | | | | | | | | | | |
+| ridge + EB kicker effect | 0.4378 | 17.8% | 0.6477 | 0.178 | 3.474 | 0.90 | +0.0056 | [-0.016, +0.027] | 0.61 | 1.00 | 6 | no difference |
+| L2 Poisson GLM | 0.4365 | 17.8% | 0.6416 | 0.176 | 3.469 | 1.02 | +0.0043 | [-0.005, +0.014] | 0.38 | 1.00 | 4 | no difference |
+| ridge, roof flags dead (as shipped before the fix) | 0.4349 | 17.7% | 0.6358 | 0.176 | 3.467 | 0.98 | +0.0027 | [-0.008, +0.013] | 0.61 | 1.00 | 6 | no difference |
+| L2 Tweedie GLM | 0.4343 | 17.7% | 0.6406 | 0.175 | 3.468 | 1.09 | +0.0021 | [-0.011, +0.016] | 0.75 | 1.00 | 5 | no difference |
+| monotone depth-2 GBM | 0.4307 | 17.5% | 0.6291 | 0.172 | 3.468 | 0.97 | -0.0015 | [-0.042, +0.038] | 0.96 | 1.00 | 4 | no difference |
+| rank blend ridge/implied, nested weight | 0.4294 | 17.5% | 0.6373 | 0.174 | | | -0.0028 | [-0.021, +0.016] | 0.78 | 1.00 | 3 | no difference |
+| Vegas-anchored residual ridge | 0.4280 | 17.4% | 0.6348 | 0.173 | 3.469 | 0.96 | -0.0041 | [-0.023, +0.014] | 0.68 | 1.00 | 2 | no difference |
+| decomposed ridge (FG + PAT) | 0.4247 | 17.3% | 0.6244 | 0.171 | 3.469 | 1.18 | -0.0075 | [-0.023, +0.009] | 0.37 | 1.00 | 3 | no difference |
+| linear pairwise ranker | 0.4209 | 17.1% | 0.6155 | 0.168 | | | -0.0113 | [-0.030, +0.009] | 0.27 | 1.00 | 2 | no difference |
+| ridge, nested alpha | 0.4208 | 17.1% | 0.6138 | 0.168 | 3.469 | 1.11 | -0.0114 | [-0.026, +0.003] | 0.13 | 1.00 | 3 | no difference |
+| elastic net | 0.4164 | 16.9% | 0.6242 | 0.168 | 3.470 | 1.18 | -0.0158 | [-0.040, +0.008] | 0.19 | 1.00 | 2 | no difference |
+| within-week demeaned ridge | 0.4144 | 16.9% | 0.6050 | 0.166 | | | -0.0178 | [-0.034, -0.002] | 0.031 | 0.44 | 3 | no difference |
+| spline ridge (GAM-style) | 0.4118 | 16.8% | 0.6067 | 0.167 | 3.470 | 1.05 | -0.0203 | [-0.045, +0.004] | 0.098 | 1.00 | 3 | no difference |
+| LightGBM lambdarank | 0.3872 | 15.8% | 0.5626 | 0.156 | | | -0.0449 | [-0.092, +0.001] | 0.057 | 0.74 | 1 | no difference |
+| *baselines, Holm m = 2* | | | | | | | | | | | | |
+| Vegas implied total alone | 0.3532 | 14.4% | 0.5137 | 0.143 | | | -0.0790 | [-0.128, -0.030] | 0.0010 | 0.0010 | 2 | ridge better |
+| kicker career average | 0.1797 | 7.3% | 0.2940 | 0.071 | 3.571 | 0.29 | -0.2524 | [-0.341, -0.161] | <0.0001 | <0.0001 | 0 | ridge better |
+| *descriptive, unadjusted* | | | | | | | | | | | | |
+| compound count model E[y] | 0.3818 | 15.5% | 0.5497 | 0.156 | 3.492 | 0.97 | -0.0504 | [-0.096, -0.005] | 0.026 | | 1 | |
+| constant (training median) | 0.0000 | 0.0% | 0.0000 | | 3.504 | | -0.4322 | [-0.517, -0.347] | <0.0001 | | 0 | |
 
-Every challenger's R=2 point estimate is below the ridge. At R=3, five are
-nominally ahead (EB kicker effect +0.031, p = 0.21; Poisson +0.007; roof repair
-+0.004; Vegas residual +0.003; decomposed +0.001) and none is close to
-significant. **Power:** for the linear cousins the CI half-width is about 0.012 to
-0.02 points a week, so any gain from reshaping the model on these features larger
-than roughly 0.02 (under 1% of the oracle) would have shown. The tree and rank
-models have CIs two to three times as wide and still point down.
+Four challengers are nominally ahead at R=2 and none is close to significant.
+**Power:** for the linear cousins the CI half-width is about 0.01 to 0.02 points a
+week, so any gain from reshaping the model on these features larger than roughly
+0.02 (under 1% of the oracle) would have shown. The tree and rank models have CIs
+two to four times as wide.
+
+## The ridge against the line, the claim that matters
+
+| test | ridge minus line | interval | p |
+|---|---|---|---|
+| week-block bootstrap, 141 weeks | +0.079 | [+0.030, +0.128] | 0.001 (Holm, m = 2: 0.001) |
+| season-cluster bootstrap, 8 seasons | +0.079 | [+0.008, +0.143] | 0.028 |
+| sign test across seasons | 6 of 8 | | 0.29 |
+
+Against a career average the same three read +0.252 [+0.161, +0.341] p < 0.0001,
+cluster [+0.169, +0.348] p < 0.0001, and 8 of 8 seasons, p = 0.008. That claim is
+solid by every test. The line claim is solid in the average and thin by season.
 
 ## Per fold, R=2 lift
 
 | model | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
 |---|---|---|---|---|---|---|---|---|
-| **ridge (shipped)** | **0.365** | **0.428** | **0.628** | **0.416** | **0.193** | **0.409** | **0.549** | **0.551** |
-| ridge, nested alpha | 0.346 | 0.409 | 0.617 | 0.416 | 0.193 | 0.408 | 0.572 | 0.537 |
-| Vegas-anchored residual ridge | 0.399 | 0.486 | 0.514 | 0.375 | 0.191 | 0.410 | 0.571 | 0.539 |
-| L2 Poisson GLM | 0.384 | 0.408 | 0.617 | 0.415 | 0.192 | 0.389 | 0.573 | 0.548 |
-| L2 Tweedie GLM | 0.371 | 0.413 | 0.629 | 0.409 | 0.192 | 0.384 | 0.537 | 0.575 |
-| spline ridge | 0.364 | 0.486 | 0.581 | 0.346 | 0.202 | 0.272 | 0.485 | 0.560 |
-| linear pairwise ranker | 0.393 | 0.406 | 0.598 | 0.404 | 0.209 | 0.384 | 0.549 | 0.538 |
-| LightGBM lambdarank | 0.357 | 0.498 | 0.437 | 0.396 | 0.146 | 0.294 | 0.535 | 0.469 |
-| ridge + EB kicker effect | 0.367 | 0.423 | 0.593 | 0.376 | 0.212 | 0.399 | 0.449 | 0.576 |
-| monotone depth-2 GBM | 0.306 | 0.528 | 0.574 | 0.367 | 0.174 | 0.329 | 0.567 | 0.459 |
-| rank blend ridge/implied | 0.359 | 0.549 | 0.540 | 0.416 | 0.165 | 0.409 | 0.549 | 0.543 |
-| within-week demeaned ridge | 0.338 | 0.406 | 0.609 | 0.395 | 0.200 | 0.381 | 0.548 | 0.533 |
-| elastic net | 0.344 | 0.530 | 0.504 | 0.379 | 0.134 | 0.419 | 0.532 | 0.548 |
-| decomposed ridge (FG + PAT) | 0.354 | 0.437 | 0.598 | 0.400 | 0.187 | 0.391 | 0.576 | 0.526 |
-| ridge, roof flags repaired | 0.362 | 0.417 | 0.620 | 0.403 | 0.179 | 0.397 | 0.564 | 0.556 |
-| compound count model E[y] | 0.327 | 0.468 | 0.581 | 0.287 | 0.174 | 0.225 | 0.419 | 0.432 |
-| Vegas implied total alone | 0.343 | 0.565 | 0.475 | 0.321 | 0.107 | 0.250 | 0.498 | 0.352 |
-| kicker career average | 0.206 | 0.244 | 0.120 | 0.107 | 0.081 | 0.280 | 0.058 | 0.199 |
-| constant | 0.023 | 0.040 | -0.014 | -0.009 | -0.041 | 0.010 | -0.051 | -0.076 |
+| **ridge (shipped)** | **0.412** | **0.406** | **0.536** | **0.389** | **0.187** | **0.379** | **0.606** | **0.546** |
+| ridge + EB kicker effect | 0.418 | 0.427 | 0.551 | 0.398 | 0.236 | 0.375 | 0.550 | 0.552 |
+| L2 Poisson GLM | 0.408 | 0.405 | 0.556 | 0.397 | 0.205 | 0.372 | 0.598 | 0.554 |
+| ridge, roof flags dead (pre-fix) | 0.413 | 0.411 | 0.537 | 0.401 | 0.196 | 0.375 | 0.585 | 0.564 |
+| L2 Tweedie GLM | 0.412 | 0.395 | 0.553 | 0.397 | 0.206 | 0.366 | 0.595 | 0.552 |
+| monotone depth-2 GBM | 0.342 | 0.517 | 0.514 | 0.395 | 0.166 | 0.320 | 0.640 | 0.557 |
+| rank blend ridge/implied | 0.384 | 0.481 | 0.484 | 0.392 | 0.170 | 0.381 | 0.605 | 0.542 |
+| Vegas-anchored residual ridge | 0.404 | 0.465 | 0.467 | 0.397 | 0.174 | 0.379 | 0.595 | 0.545 |
+| decomposed ridge (FG + PAT) | 0.361 | 0.404 | 0.533 | 0.390 | 0.181 | 0.364 | 0.616 | 0.551 |
+| linear pairwise ranker | 0.403 | 0.387 | 0.536 | 0.397 | 0.200 | 0.319 | 0.593 | 0.537 |
+| ridge, nested alpha | 0.357 | 0.382 | 0.536 | 0.397 | 0.200 | 0.355 | 0.599 | 0.542 |
+| elastic net | 0.367 | 0.464 | 0.458 | 0.376 | 0.154 | 0.379 | 0.593 | 0.542 |
+| within-week demeaned ridge | 0.350 | 0.381 | 0.540 | 0.396 | 0.198 | 0.312 | 0.604 | 0.535 |
+| spline ridge | 0.363 | 0.458 | 0.527 | 0.339 | 0.192 | 0.299 | 0.568 | 0.554 |
+| LightGBM lambdarank | 0.363 | 0.545 | 0.408 | 0.374 | 0.166 | 0.228 | 0.566 | 0.457 |
+| compound count model E[y] | 0.373 | 0.475 | 0.510 | 0.379 | 0.182 | 0.234 | 0.479 | 0.434 |
+| Vegas implied total alone | 0.362 | 0.516 | 0.425 | 0.392 | 0.145 | 0.200 | 0.470 | 0.329 |
+| kicker career average | 0.224 | 0.268 | 0.185 | 0.179 | 0.060 | 0.250 | 0.105 | 0.174 |
+| oracle | 2.289 | 2.309 | 2.461 | 2.472 | 2.391 | 2.490 | 2.637 | 2.599 |
 
-The season-to-season swing in the ridge's own lift (0.19 in 2022 to 0.63 in 2020)
-is far larger than any gap between candidates, which is why a fold count alone
-cannot pick a winner.
+The ridge loses to the line in 2019 (by 0.110) and 2021 (by 0.003, a tie). The
+pre-fix ridge won 2021 by 0.009, so the old 7 of 8 became 6 of 8 through a tie
+changing sides, not through anything the roof fix taught the model. The
+season-to-season swing in the ridge's own lift, 0.19 in 2022 to 0.61 in 2024, is
+far larger than any gap between candidates, which is why a fold count alone cannot
+pick a winner.
 
 ## What was tried, and why each lost or tied
 
-1. **Nested alpha.** Ties (-0.005, p = 0.61). The inner loop's choice drifts from
-   10,000 in 2018 (three training seasons) down to 30 by 2023 to 2025: with more
-   data the optimum shrinks less, and the shipped 100 sits in the middle. The
-   shipped alpha was read off these same folds, which biases the comparison toward
-   the reference, and it still only ties, so the tuning does no work.
-2. **Vegas-anchored residual ridge.** Ties (-0.007, p = 0.55), the most folds won
-   (4 of 8). Shrinking toward the line instead of toward a constant changes
-   nothing, because at alpha 100 the ridge already puts its largest weight on the
-   implied total.
-3. **L2 Poisson and Tweedie GLMs.** Tie (-0.002 and -0.004). The log link is a
-   monotone reshaping of the same linear score, so the ranking barely moves. The
-   count link does not help ranking. As a distribution, Poisson on points is badly
-   wrong in the tail (predicts 2.2% of weeks at 15+, realised 8.4%); Tweedie gets
-   15+ right (1.03) but misses the middle thresholds by 6 to 9%, so the compound
-   model remains the better probability machine (table below).
-4. **Spline ridge.** Loses (-0.031, raw p = 0.03, Holm 0.43). The inner loop picked
-   a stiff fit in every fold (alpha 1,000 to 10,000, 3 knots in 7 of 8) and it
-   still lost; there is no exploitable curvature in implied total, total line, wind
-   exposure or recent volume at this sample size.
-5. **Learning to rank.** The linear pairwise ranker ties (-0.007): optimising the
+1. **Empirical-Bayes kicker effect.** The closest (+0.006, 6 of 8 seasons, Holm
+   1.00). The between-kicker residual sd is 0.38 points against 4.30 of week noise,
+   so what is left of "the kicker" after the features is small. It is the one
+   candidate worth re-testing once 2026 is in, and only as a single pre-registered
+   comparison.
+2. **L2 Poisson and Tweedie GLMs.** Tie (+0.004, +0.002). The log link is a
+   monotone reshaping of the same linear score, so the ranking barely moves. As a
+   distribution, Poisson on points is badly wrong in the tail (predicts 2.2% of
+   weeks at 15+, realised 8.4%); Tweedie gets 15+ nearly right (1.02) but misses
+   the middle thresholds by 6 to 9%, so the compound model remains the better
+   probability machine (table below).
+3. **The pre-fix ridge.** Ties (+0.003, p = 0.61). The repaired roof flags carry a
+   stable retractable coefficient (+0.07 points per sd, same sign 8 of 8) and an
+   indoor coefficient that flips sign with era (4 of 8), and together they buy
+   nothing on ranking.
+4. **Nested alpha.** Ties (-0.011, p = 0.13). The inner loop's choice runs from
+   10,000 in 2018 (three training seasons) to 300 through the middle folds and 1 in
+   2025. The shipped 100 was read off these same folds, which biases the
+   comparison toward the reference, and the nested version still only ties.
+5. **Vegas-anchored residual ridge.** Ties (-0.004). Shrinking toward the line
+   instead of toward a constant changes nothing, because at alpha 100 the ridge
+   already puts its largest weight on the implied total.
+6. **Spline ridge.** Loses nominally (-0.020, p = 0.10). The inner loop picked 3
+   knots in 7 of 8 folds and heavy shrinkage in most; there is no exploitable
+   curvature in the line, wind exposure or recent volume at this sample size.
+7. **Learning to rank.** The linear pairwise ranker ties (-0.011): optimising the
    decision's own pairwise loss directly buys nothing over least squares.
-   LightGBM lambdarank loses (-0.051) and trails the ridge in 7 of 8 seasons.
-6. **Empirical-Bayes kicker effect.** Ties (-0.018 at R=2, +0.031 at R=3, neither
-   significant). The between-kicker residual sd is 0.38 points against 4.3 of
-   week noise, so what is left of "the kicker" after the features is small, and
-   its sign flips with roster size.
-7. **Monotone depth-2 GBM.** Loses (-0.030). Honest about the direction of the
-   line and still worse than the linear fit.
-8. **Nested rank blend.** Closest of all (-0.001). The weight on the ridge drifts
-   from 0.4 in the early folds to 0.9 to 1.0 in the last three: as training data
-   grows, the inner loop learns to trust the ridge over the raw line. It converges
-   to the shipped model.
-9. **Cheap extras, each motivated by METHOD.md or the brief.** Within-week
-   demeaned ridge (the decision is within a week, so remove between-week
-   variation): -0.016. Elastic net (can fewer columns tie?): keeps 8 of 16 columns
-   in the last fold, -0.019, loses 6 of 8 seasons. Decomposed ridge (separate
-   shrinkage for field-goal and extra-point points, from the variance
-   decomposition): the inner loop did choose heavy FG shrinkage early (alpha 1,000
-   to 10,000), as the "field goals have no skill" finding predicts, but the sum
-   ties the single ridge (-0.008). Line movement was not tested: `games.csv`
-   carries one spread and one total per game (closing), no opening line, and no
-   keyed source was added.
+   LightGBM lambdarank loses (-0.045) and trails the ridge in 7 of 8 seasons.
+8. **Monotone depth-2 GBM.** Ties (-0.002) with the widest interval of any linear
+   rival. Honest about the direction of the line and no better than the linear fit.
+9. **Nested rank blend.** Ties (-0.003). The weight on the ridge sits between 0.3
+   and 0.7 in the first five folds and at 0.9 in the last three: as training data
+   grows the inner loop learns to trust the ridge over the raw line.
+10. **Cheap extras.** Within-week demeaned ridge: -0.018 (raw p = 0.03, Holm 0.44).
+    Elastic net: keeps 15 of 16 columns in the last fold and -0.016. Decomposed
+    ridge (separate shrinkage for field-goal and extra-point points): the inner loop
+    chose heavy FG shrinkage early (alpha 1,000 to 10,000), as the "field goals have
+    no skill" finding predicts, and the sum ties the single ridge (-0.008). Line
+    movement was not tested: `games.csv` carries one closing spread and total per
+    game, no opening line.
 
 ## Calibration, where the model outputs a distribution
 
 | threshold | compound pred / real | ratio | Tweedie GLM ratio | Poisson GLM ratio |
 |---|---|---|---|---|
-| 8 or more | 0.545 / 0.524 | 1.04 | 0.94 | 1.06 |
-| 10 or more | 0.374 / 0.356 | 1.05 | 0.91 | 0.84 |
-| 12 or more | 0.224 / 0.218 | 1.03 | 0.92 | 0.58 |
-| 15 or more | 0.084 / 0.084 | 1.00 | 1.03 | 0.27 |
+| 8 or more | 0.546 / 0.524 | 1.04 | 0.94 | 1.06 |
+| 10 or more | 0.375 / 0.356 | 1.05 | 0.91 | 0.84 |
+| 12 or more | 0.224 / 0.218 | 1.03 | 0.91 | 0.58 |
+| 15 or more | 0.0846 / 0.0841 | 1.01 | 1.02 | 0.27 |
 
-The ridge is a point forecaster and its mean calibration is fine (slope 0.98, bias
--0.07 points). The split the repo already uses stands: rank with the ridge, take
-probabilities from the compound model.
+The ridge is a point forecaster and its mean calibration is fine (slope 0.97).
+Rank with the ridge, take probabilities from the compound model.
 
 ## Slices
 
 | R=2 lift | weeks 1-4 | weeks 5+ | 2018-2021 | 2022-2025 |
 |---|---|---|---|---|
-| ridge (shipped) | 0.294 | 0.485 | 0.458 | 0.425 |
-| rank blend | 0.312 | 0.478 | 0.465 | 0.416 |
-| L2 Poisson GLM | 0.316 | 0.477 | 0.455 | 0.426 |
-| monotone depth-2 GBM | 0.352 | 0.429 | 0.443 | 0.382 |
-| Vegas implied total alone | 0.284 | 0.385 | 0.425 | 0.302 |
+| ridge (shipped) | 0.280 | 0.477 | 0.435 | 0.430 |
+| ridge + EB kicker effect | 0.282 | 0.484 | 0.448 | 0.428 |
+| L2 Poisson GLM | 0.291 | 0.479 | 0.441 | 0.432 |
+| monotone depth-2 GBM | 0.364 | 0.450 | 0.441 | 0.420 |
+| Vegas implied total alone | 0.258 | 0.381 | 0.423 | 0.286 |
 
-Two things the pooled table hides. The ridge's edge over the line lives in weeks
-5+ (+0.100), where the lagged volume features have filled in; in weeks 1 to 4 it is
-+0.010, a tie. And the line alone got much worse in 2022 to 2025 (0.425 to 0.302)
-while the ridge barely moved, so the ridge's edge over the line is larger in the
-recent era (+0.123) than the early one (+0.033). The early-week cells favour the
-GBM and the GLM, but those are slices read after the fact across 18 models, so
-they are leads, not findings.
+The ridge's edge over the line lives in weeks 5+ (+0.096), where the lagged
+volume features have filled in; in weeks 1 to 4 it is +0.022. And the line alone
+got much worse in 2022 to 2025 (0.423 to 0.286) while the ridge did not move, so
+nearly all of the edge is recent: +0.012 in 2018 to 2021, +0.144 in 2022 to 2025.
+The early-week cells favour the GBM, but that is a slice read after the fact
+across 18 models, a lead and not a finding.
 
 ## Interpretability and simplicity, the tiebreaker
 
@@ -194,79 +254,82 @@ folds and how many folds keep that sign:
 
 | feature | mean | same sign | | feature | mean | same sign |
 |---|---|---|---|---|---|---|
-| implied_total | +0.467 | 8/8 | | k_fantasy_points_l8 | +0.367 | 8/8 |
-| opp_implied_total | -0.300 | 8/8 | | climate_wind_exposed | -0.215 | 8/8 |
-| total_line | +0.149 | 8/8 | | t_team_score_l8 | -0.135 | 7/8 |
-| t_pat_att_l8 | -0.102 | 7/8 | | k_fg_att_l8 | -0.079 | 7/8 |
-| k_fg_pct_career | +0.061 | 8/8 | | t_fg_share_l8 | -0.054 | 4/4 |
-| t_fg_att_l8 | -0.026 | 5/8 | | prev_go_rate | -0.022 | 3/3 |
-| closeness | +0.017 | 6/8 | | is_home | -0.005 | 6/8 |
-| is_indoor_certain | 0 | dead | | is_retractable | 0 | dead |
+| implied_total | +0.466 | 8/8 | | k_fantasy_points_l8 | +0.370 | 8/8 |
+| opp_implied_total | -0.298 | 8/8 | | climate_wind_exposed | -0.179 | 8/8 |
+| total_line | +0.151 | 8/8 | | t_team_score_l8 | -0.133 | 7/8 |
+| t_pat_att_l8 | -0.103 | 7/8 | | k_fg_att_l8 | -0.079 | 7/8 |
+| is_retractable | +0.068 | 8/8 | | k_fg_pct_career | +0.059 | 8/8 |
+| t_fg_share_l8 | -0.054 | 4/4 | | t_fg_att_l8 | -0.028 | 5/8 |
+| prev_go_rate | -0.023 | 3/3 | | closeness | +0.017 | 6/8 |
+| is_indoor_certain | -0.009 | 4/8 | | is_home | -0.005 | 6/8 |
 
-The five largest coefficients keep their sign in 8 of 8 folds and each has a
-stated mechanism: the offence's
-own implied points up, the opponent's down (game script), wind down, recent kicker
-output up. The fourth-down features only exist from 2021 and 2022, so they are
-live in 3 and 4 folds. Among the models that tie, the ridge has the fewest moving
-parts: one fixed hyperparameter, no link function, no dispersion or power
-parameter, no dependence on the week's slate (the blend and the pairwise ranker
-both need it), and one coefficient per named feature.
-
-## A finding outside the brief: two of the 16 features are dead
-
-`is_indoor_certain` is 0 and `is_retractable` is 1 on every one of the 5,794 rows.
-`features.roof_flags` looks for `stadium_id` or `stadium` on the kicker frame,
-finds neither, falls back to the kicker's **team** as the venue, and since every
-team has played away under a retractable roof, every team is flagged retractable.
-The ridge standardises them to zero columns, so the live feature set is 14, not
-16, and the docs overstate it. This is not leakage and not train/serve skew (the
-board's rows carry no `stadium_id` either, so they get the same constants). Repairing the flags from `games.csv` `stadium_id`
-(done inside `model_bakeoff.py` only) makes them real (sd 0.36) and changes
-nothing measurable (-0.005, p = 0.45), so the fix is for honesty, not lift. No
-existing file was changed.
+The largest coefficients keep their sign in 8 of 8 folds and each has a stated
+mechanism: the offence's own implied points up, the opponent's down (game script),
+wind down, recent kicker output up. The fourth-down features only exist from 2021
+and 2022, so they are live in 3 and 4 folds. Among the models that tie, the ridge
+has the fewest moving parts: one fixed hyperparameter, no link function, no
+dispersion or power parameter, no dependence on the week's slate (the blend and
+the pairwise ranker both need it), and one coefficient per named feature.
 
 ## Leakage register
 
-Prediction moment: after lines are posted, before kickoff.
+Prediction moment: a lineup set close to kickoff, after the closing line.
 
 | risk | class | evidence | severity | effect on this comparison |
 |---|---|---|---|---|
-| lines in the backtest are closing lines; the board uses whatever line is in `games.csv` when it runs | future knowledge | nflverse `spread_line`/`total_line` are closing; `predict_week.py` reads the current file | medium | inflates every Vegas-driven candidate's absolute lift; does not favour any challenger over the ridge |
+| market features are closing lines | timing | nflverse `spread_line`/`total_line` are closing; `predict_week.py` reads the current file | medium | the board is valid near kickoff; read earlier, every Vegas-driven candidate's absolute lift is optimistic, and none is favoured over the ridge |
 | shipped alpha = 100 was read off these test folds | tuning on test | METHOD.md says so | low | favours the reference; the nested ridge ties it anyway |
 | the 16 features were chosen after three families were rejected on these same folds | selection on test | METHOD.md feature table | low to medium | shared by every candidate, inflates absolute lift, not the ranking |
 | fourth-down features absent before 2021/2022 | population mismatch across eras | all-NaN in early folds, dropped by the imputer | low | slice table shows no era break for the ridge |
-| retractable venue set defined from the whole file | future knowledge | building property, stable | low | moot while the flags are dead |
+| retractable roof open or closed | game-day decision | never set on an unplayed game | none now | both settings map to one "retractable" type; an unplayed game takes its type from a table built from played games only |
 
 All challengers' preprocessing is fit inside the training block, and no test-season
 row enters tuning.
 
 ## What would be worth trying next
 
-1. **Re-run this bake-off after 2026 completes.** Both the nested alpha and the
-   blend weight drift toward trusting the features as training data grows, and
-   the fourth-down features are only live in 3 to 4 folds. The ridge's edge over
-   the line is the thing most likely to grow. It is a rerun, not a rebuild.
-2. **Fix or drop the dead roof flags in `features.py`** and correct "16" to the
-   real count in the docs. No lift, just honesty.
+1. **Re-run after 2026 completes.** Both the nested alpha and the blend weight
+   drift toward trusting the features as training data grows, and the edge over
+   the line is almost all 2022 onward. A ninth season is the cheapest way to move
+   the sign test off 6 of 8. It is a rerun, not a rebuild.
+2. **The EB kicker effect as one pre-registered test.** It is the only challenger
+   that already wins 6 of 8 seasons.
 3. **An early-season prior.** Weeks 1 to 4 are where the ridge collapses to the
-   line. Carrying prior-season team volume into the first four weeks is a feature
-   idea with a clear mechanism; pre-register it as one test.
+   line. Carrying prior-season team volume into the first four weeks has a clear
+   mechanism; pre-register it as one test.
 4. **Opening lines**, only if a key-free historical source turns up. They would
-   both remove the closing-line optimism above and allow a line-movement feature.
+   remove the closing-line optimism above and allow a line-movement feature.
 5. **Nothing else on the model side.** Fourteen shapes of model on these features
-   all land within noise of the ridge or below it. Further gains, if any, are in
-   inputs, not in the learner.
+   land within noise of the ridge. Further gains, if any, are in inputs.
+
+## The interview answer, in plain language
+
+"I rank fantasy kickers with a ridge regression on 16 inputs that exist before
+kickoff: mostly the Vegas line, plus the offence's recent volume, the coach's
+fourth-down habits and the stadium. I tested 14 alternatives, from count GLMs to
+gradient-boosted rankers, each tuned only on seasons before the one it was scored
+on, and none beat it, so I kept the simplest. Against just starting the kicker
+whose team Vegas expects to score most, it gains about 0.08 points a week. That is
+clear week to week, but it only wins 6 of 8 seasons, so I call it a small,
+consistent edge and not a big one. The real lesson is that most of a kicker's week
+is field goals, which are close to unpredictable, and the betting line already
+knows most of what can be known. A reviewer also caught two mistakes of mine: two
+features were constant because of a join bug, and I had been scoring with a noisy
+simulation. Fixing both left the conclusion where it was, which is what checking
+is for."
 
 ## Reproduce
 
 ```
 set OMP_NUM_THREADS=1
 python src/kicker_analysis/model_bakeoff.py --self-check   # offline, a few seconds
-python src/kicker_analysis/model_bakeoff.py --quick        # 3 folds, 1 inner fold, about 2 min
-python src/kicker_analysis/model_bakeoff.py                # the numbers above, about 5 min
+python src/kicker_analysis/model_bakeoff.py --quick        # 3 folds, 1 inner fold, about 6 min
+python src/kicker_analysis/model_bakeoff.py                # the numbers above, about 20 min
 ```
 
-Seeds are fixed (harness seed 0, LightGBM `deterministic=True`, one thread).
-Outputs: `reports/model_bakeoff_summary.csv`, `_folds.csv`, `_params.csv` (every
+Seeds are fixed (bootstrap seed 0, LightGBM `deterministic=True`, one thread) and
+the lift is exact, so a rerun reproduces every number. Outputs:
+`reports/model_bakeoff_summary.csv` (with a `family` column and the season-cluster
+and sign-test columns on the baseline rows), `_folds.csv`, `_params.csv` (every
 chosen hyperparameter per fold), `_calibration.csv`, `_slices.csv`,
 `_ridge_coefs.csv`, and the ignored `_predictions.parquet`.

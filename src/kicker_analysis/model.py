@@ -24,19 +24,19 @@ rule, which buys three things a direct regression does not:
   1. It is honest about where the signal is. The PAT stage does the work.
   2. It gives P(y >= x) for every threshold with no threshold model trained, and
      that matches a purpose-built classifier (at y>=15, AUC 0.545 vs 0.551).
-  3. Calibration, measured: predicted rates land within 5% of realised at every
-     threshold, and at 15 or more points it is 0.0838 against 0.0841.
+  3. Calibration, measured: predicted rates land within 6% of realised at every
+     threshold, and at 15 or more points it is 0.0846 against 0.0841.
 
 RETRACTED, because the backtest did not support it. An earlier reviewer found a
 gradient-boosted mean ranking hit 15+ less often than random (0.057 vs 0.085) and
 that ranking by P(y>=15) fixed it. Neither holds for this model: measured over 8
-folds, random 0.0816, mean ranking 0.0888, P(y>=15) ranking 0.0889. The compound
+folds, random 0.0840, mean ranking 0.0920, P(y>=15) ranking 0.0931. The compound
 model removed the anti-ceiling defect, and once removed the second board adds
 nothing on top of the first.
 
-WHAT THIS MODEL IS NOT FOR: ranking. On the decision metric it scores 0.349
-points per week against RidgeRanker's 0.434, and loses the paired bootstrap by
-0.086 at p = 0.002. Rank with RidgeRanker, take probabilities from here.
+WHAT THIS MODEL IS NOT FOR: ranking. On the decision metric it scores 0.382
+points per week against RidgeRanker's 0.432, and loses the paired bootstrap by
+0.050 at p = 0.026. Rank with RidgeRanker, take probabilities from here.
 
 Counts are UNDER-dispersed here: fg_att variance/mean = 0.843, pat_att = 0.881.
 Negative binomial only extends Poisson upward so it cannot fit this, which is why
@@ -77,6 +77,8 @@ REPORTS = ROOT / "reports"
 FEATURES = [
     # The market. One line already beats the 73-column model, because it is the
     # only input that prices this specific offence against this specific defence.
+    # These are nflverse CLOSING lines, so the board is valid for a lineup set
+    # close to kickoff, with the line as it stands then.
     "implied_total",          # the offence's own forecast points
     "opp_implied_total",      # the other side's, which drives game flow
     "total_line",
@@ -92,7 +94,7 @@ FEATURES = [
     "k_fg_pct_career",
     "k_fg_att_l8",
     "k_fantasy_points_l8",
-    # Environment, in the only form knowable on Tuesday.
+    # Environment, in the only form knowable before kickoff: the building.
     "is_indoor_certain",
     "is_retractable",
     "climate_wind_exposed",
@@ -129,16 +131,17 @@ class RidgeRanker:
     """The ORDERING model. Ridge on the 16 named features, heavily regularised.
 
     Measured against the alternatives on the decision metric, 8 season-forward
-    folds, points per week gained starting the better of two random kickers:
+    folds, exact expected points per week gained starting the better of two
+    random kickers (backtest.py, 2026-09-29, roof flags repaired):
 
-        ridge, 16 features      0.434   rho 0.173
-        Vegas implied total     0.362   rho 0.143
-        compound count model    0.349   rho 0.143
-        kicker career average   0.161   rho 0.071
+        ridge, 16 features      0.432   rho 0.174
+        compound count model    0.382   rho 0.156
+        Vegas implied total     0.353   rho 0.143
+        kicker career average   0.180   rho 0.071
 
-    Paired week-block bootstrap: ridge beats the implied total by +0.072
-    [+0.014, +0.130], p = 0.015, and beats the compound model by +0.086
-    [+0.029, +0.140], p = 0.002. So the count model is the better probability
+    Paired week-block bootstrap: ridge beats the implied total by +0.079
+    [+0.030, +0.128], p = 0.001, and beats the compound model by +0.050
+    [+0.005, +0.096], p = 0.026. So the count model is the better probability
     machine and the worse ranker, and each is used for the job it wins.
 
     alpha = 100 rather than the 10 a first pass would reach for. The design
@@ -174,8 +177,8 @@ class CompoundKickerModel:
     """The PROBABILITY model. Two count stages drawn into a full law.
 
     Kept for what it wins: calibration. Across 8 folds the predicted rate lands
-    within 5% of the realised rate at every threshold, and at 15 or more points
-    it is 0.0838 predicted against 0.0841 realised. A point forecast cannot tell
+    within 6% of the realised rate at every threshold, and at 15 or more points
+    it is 0.0846 predicted against 0.0841 realised. A point forecast cannot tell
     you that, and a betting line certainly cannot.
 
     It is NOT used for ranking. See RidgeRanker for why.

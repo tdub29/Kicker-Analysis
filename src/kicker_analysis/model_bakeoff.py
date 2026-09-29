@@ -8,21 +8,28 @@ before s, and it is scored once on s. Every preprocessing step (median
 imputation, scaling, spline knots, pair construction, the empirical-Bayes
 variance components, the Vegas offset) is fit inside the training block.
 
-The inner score is the EXACT expected R=2 decision lift: over every pair of
-kickers in a week, the gain from starting the one the score prefers. That is the
-expectation the harness's 300-draw simulation estimates, without the draw noise,
-so tuning and evaluation aim at the same number.
+The inner AND outer score is the EXACT expected R=2 decision lift: over every
+pair of kickers in a week, the gain from starting the one the score prefers.
+backtest.per_week_lift computes it in closed form for any roster size, so tuning
+and evaluation aim at the same number and no comparison carries draw noise. (The
+first run scored the outer folds with a 300-draw simulation; a reviewer caught it.)
 
-Evaluation is the repo's harness, unchanged: backtest.decision and
-backtest.per_week_lift for the lift, backtest.rho for within-week Spearman,
-backtest.boot_lift for the paired week-block bootstrap against the shipped
-ridge. Rows are laid out in the order backtest.py uses, so the reference rows
-reproduce its published numbers exactly (ridge 0.4415 at R=2).
+Evaluation is the repo's harness: backtest.decision and backtest.per_week_lift
+for the lift, backtest.rho for within-week Spearman, backtest.boot_lift for the
+paired week-block bootstrap against the shipped ridge. Rows are laid out in the
+order backtest.py uses, so the reference rows reproduce its numbers exactly.
 
-Win rule, fixed before the run: a challenger wins only if its Holm-adjusted
-bootstrap p against the shipped ridge is below 0.05, the difference is
-positive, AND its R=2 lift beats the ridge in at least 6 of the 8 test seasons.
-The Holm family is every row other than the reference.
+Two multiplicity families, fixed before the run:
+  challengers  the 14 candidates vs the shipped ridge, Holm m = 14. A challenger
+               wins only if Holm p < 0.05, the difference is positive, AND it
+               beats the ridge in at least 6 of the 8 test seasons.
+  baselines    the two claims the README already made, ridge vs the Vegas
+               implied total and ridge vs the kicker's career average, Holm
+               m = 2. Each also gets a season-cluster bootstrap (whole seasons
+               resampled, 8 clusters) and a two-sided sign test across seasons,
+               because 141 weeks are not 141 independent draws when the
+               ridge's own lift swings 0.19 to 0.63 by season.
+The compound model and the constant are reported unadjusted, as description.
 
 This file only reads. It does not touch the production model or the board.
 
@@ -44,9 +51,9 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-import kicker_analysis.backtest as bt  # noqa: E402
 from kicker_analysis.backtest import (FIRST_TEST, MIN_WEEKS, boot_lift,  # noqa: E402
                                       decision, per_week_lift, rho)
+from kicker_analysis.features import check_roof  # noqa: E402
 from kicker_analysis.model import (CompoundKickerModel, FEATURES,  # noqa: E402
                                    RidgeRanker, load)
 
@@ -75,19 +82,33 @@ def _prep(train: pd.DataFrame):
 
 
 def exact_lift(season, week, y, score) -> float:
-    """Exact expected R=2 lift: mean over weeks of the mean over pairs of
-    sign(score_i - score_j) * (y_i - y_j) / 2. A tie scores 0, as a coin flip."""
+    """Exact expected R=2 lift, the harness's own closed form, as one number."""
     d = pd.DataFrame({"season": np.asarray(season), "week": np.asarray(week),
                       "y": np.asarray(y, float), "s": np.asarray(score, float)})
-    out = []
-    for _, g in d.groupby(KEY, sort=True):
-        n = len(g)
-        if n < 2:
-            continue
-        yy, ss = g.y.to_numpy(), g.s.to_numpy()
-        tot = (np.sign(ss[:, None] - ss[None, :]) * (yy[:, None] - yy[None, :])).sum()
-        out.append(tot / (2 * n * (n - 1)))
-    return float(np.mean(out))
+    return float(per_week_lift(d, "s", 2)[0].mean())
+
+
+def season_cluster(wk: pd.DataFrame, a: str, b: str, n: int) -> dict:
+    """Resample whole SEASONS with replacement; the statistic is the pooled
+    weekly mean of a - b over the resampled weeks, the same statistic as the
+    week-block bootstrap, with the dependence inside a season kept intact."""
+    d = (wk[a] - wk[b]).to_numpy()
+    by = wk.groupby("season").indices
+    sums = np.array([d[i].sum() for i in by.values()])
+    cnt = np.array([len(i) for i in by.values()])
+    pick = np.random.default_rng(SEED).integers(0, len(sums), size=(n, len(sums)))
+    draws = sums[pick].sum(axis=1) / cnt[pick].sum(axis=1)
+    lo, hi = np.percentile(draws, [2.5, 97.5])
+    return {"season_lo": float(lo), "season_hi": float(hi),
+            "season_p": float(min(1.0, 2 * min((draws <= 0).mean(), (draws >= 0).mean())))}
+
+
+def sign_test(fa: pd.Series, fb: pd.Series) -> dict:
+    """Two-sided exact sign test on per-season lifts; ties dropped."""
+    from scipy.stats import binomtest
+    d = (fa - fb).to_numpy()
+    wins, k = int((d > 0).sum()), int((d != 0).sum())
+    return {"seasons_won": wins, "sign_p": float(binomtest(wins, k).pvalue) if k else 1.0}
 
 
 def holm(p) -> np.ndarray:
@@ -292,29 +313,18 @@ def f_decomp(tr, te, a_fg, a_pat):
     return fg.m_.predict(te[FEATURES]) + pat.m_.predict(te[FEATURES])
 
 
-# The shipped roof flags are dead: kicker_games has no stadium_id, so
-# features.roof_flags falls back to the kicker's TEAM as the venue, every team
-# has played away under a retractable roof, and is_retractable is 1 and
-# is_indoor_certain 0 on every row. This rebuilds them from the real venue
-# (games.csv stadium_id), a property of the building, and re-derives the
-# wind exposure that multiplies by them. Added here only; features.py untouched.
-ROOF_FIX = {"is_indoor_certain": "is_indoor_fixed", "is_retractable": "is_retractable_fixed",
-            "climate_wind_exposed": "climate_wind_exposed_fixed"}
-FIXED_FEATURES = [ROOF_FIX.get(f, f) for f in FEATURES]
+# The roof flags were dead until 2026-09-29 (features.roof_flags keyed the
+# building on the kicker's team, so both flags were constant). They are repaired
+# in features.py, so the shipped ridge now carries them. This challenger IS the
+# ridge as it shipped before the fix: without the two flags, which a scaler
+# zeroed anyway, and with the wind exposure that never saw a dome.
+PREFIX_FEATURES = ([f for f in FEATURES if f not in ("is_indoor_certain", "is_retractable",
+                                                    "climate_wind_exposed")]
+                   + ["climate_wind_prefix"])
 
 
-def repair_roof(df: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
-    venue = df.game_id.map(games.drop_duplicates("game_id").set_index("game_id").stadium_id)
-    retract = set(games.loc[games.roof.isin(["open", "closed"]), "stadium_id"].dropna())
-    d = df.copy()
-    d["is_retractable_fixed"] = venue.isin(retract).astype(int)
-    d["is_indoor_fixed"] = ((d.roof == "dome") & (d.is_retractable_fixed == 0)).astype(int)
-    d["climate_wind_exposed_fixed"] = d.venue_wind_climate.fillna(0) * (1 - d.is_indoor_fixed)
-    return d
-
-
-def f_roof_fixed(tr, te):
-    return RidgeRanker(features=FIXED_FEATURES).fit(tr).predict(te)
+def f_prefix_roof(tr, te):
+    return RidgeRanker(features=PREFIX_FEATURES).fit(tr).predict(te)
 
 
 CANDS = {
@@ -334,7 +344,7 @@ CANDS = {
     "elastic_net": (f_enet, [{"alpha": a, "l1": l1} for l1 in (1.0, 0.5)
                              for a in (1.0, 0.3, 0.1, 0.03, 0.01, 0.003)]),
     "decomposed_ridge": (f_decomp, [{"a_fg": f, "a_pat": p} for f in ALPHAS for p in ALPHAS]),
-    "ridge_roof_fixed": (f_roof_fixed, [{}]),
+    "ridge_prefix_roof": (f_prefix_roof, [{}]),
 }
 
 LABEL = {
@@ -352,16 +362,17 @@ LABEL = {
     "within_week_ridge": "within-week demeaned ridge",
     "elastic_net": "elastic net",
     "decomposed_ridge": "decomposed ridge (FG + PAT)",
-    "ridge_roof_fixed": "ridge, roof flags repaired",
+    "ridge_prefix_roof": "ridge, roof flags dead (as shipped before the fix)",
     "exp_points": "compound count model E[y]",
     "implied": "Vegas implied total alone",
     "career": "kicker career average",
     "constant": "constant (training median)",
 }
+FAMILY = {**{c: "challengers" for c in CANDS}, "implied": "baselines", "career": "baselines"}
 # Columns whose output is on the points scale, so MAE and calibration mean something.
 POINTS_SCALE = {"ridge", "ridge_nested", "vegas_resid", "poisson_glm", "tweedie_glm",
                 "spline_ridge", "eb_kicker", "mono_gbm", "elastic_net",
-                "decomposed_ridge", "ridge_roof_fixed", "exp_points", "career", "constant"}
+                "decomposed_ridge", "ridge_prefix_roof", "exp_points", "career", "constant"}
 
 
 def inner_splits(train: pd.DataFrame, n_inner: int):
@@ -382,16 +393,20 @@ def tune(fit, grid, train, n_inner):
 # ---------------------------------------------------------------- the run
 def run(quick: bool) -> int:
     t0 = time.time()
-    df = repair_roof(load(), pd.read_csv(ROOT / "data" / "external" / "games.csv", low_memory=False))
-    for old, new in ROOF_FIX.items():
-        print(f"  {old}: sd {df[old].std():.3f} shipped, {df[new].std():.3f} repaired")
+    df = load()
+    check_roof(df)
+    df["climate_wind_prefix"] = df.venue_wind_climate.fillna(0)
+    live = [f for f in FEATURES if df[f].std() > 0]
+    assert len(live) == len(FEATURES), sorted(set(FEATURES) - set(live))
+    print("  roof flags sd: " + ", ".join(f"{c} {df[c].std():.3f}"
+                                         for c in ("is_indoor_certain", "is_retractable")))
     seasons = sorted(df.season.unique())
     tests = [s for s in seasons if s >= FIRST_TEST and df[df.season == s].week.nunique() >= MIN_WEEKS]
     n_inner, n_boot = (1, 1000) if quick else (3, 10000)
     if quick:
         tests = tests[-3:]
     need = math.ceil(0.75 * len(tests))          # 6 of 8 in the full run
-    print(f"{len(df):,} kicker-games, {len(FEATURES)} features, test seasons "
+    print(f"{len(df):,} kicker-games, {len(live)} non-constant features, test seasons "
           f"{[int(s) for s in tests]}, inner folds {n_inner}, bootstrap {n_boot}\n")
 
     blocks, params = [], []
@@ -441,35 +456,55 @@ def run(quick: bool) -> int:
                 r["bias"] = float((P[c] - P.y).mean())
         if c != "ridge":
             b2, b3 = boot_lift(P, c, "ridge", 2, n_boot), boot_lift(P, c, "ridge", 3, n_boot)
-            r.update({"diff_r2": b2["diff"], "lo_r2": b2["lo"], "hi_r2": b2["hi"],
+            r.update({"family": FAMILY.get(c, "descriptive"),
+                      "diff_r2": b2["diff"], "lo_r2": b2["lo"], "hi_r2": b2["hi"],
                       "p_r2": b2["p"], "diff_r3": b3["diff"], "p_r3": b3["p"],
                       "folds_won": int((folds[c] > folds["ridge"]).sum())})
+            if r["family"] == "baselines":
+                # Oriented as the README states them: ridge minus the baseline.
+                r.update(season_cluster(wk, "ridge", c, n_boot))
+                r.update(sign_test(folds["ridge"], folds[c]))
+        else:
+            r["family"] = "reference"
         rows.append(r)
     T = pd.DataFrame(rows)
-    ch = T.key != "ridge"
-    T.loc[ch, "holm_p"] = holm(T.loc[ch, "p_r2"])
+    for fam in ("challengers", "baselines"):
+        m = T.family == fam
+        T.loc[m, "holm_p"] = holm(T.loc[m, "p_r2"])
 
     def verdict(r):
         if r.key == "ridge":
             return "reference"
+        if r.family == "descriptive":
+            return "unadjusted"
         if r.holm_p < 0.05 and r.diff_r2 > 0 and r.folds_won >= need:
             return "WINS"
         if r.holm_p < 0.05 and r.diff_r2 < 0:
-            return "loses"
+            return "ridge better"
         return "no difference"
     T["verdict"] = T.apply(verdict, axis=1)
-    T = pd.concat([T[~ch], T[ch].sort_values("lift_r2", ascending=False)])
+    rank = {"reference": 0, "challengers": 1, "baselines": 2, "descriptive": 3}
+    T = (T.assign(_f=T.family.map(rank)).sort_values(["_f", "lift_r2"], ascending=[True, False])
+          .drop(columns="_f"))
 
     pd.set_option("display.width", 250)
     pd.set_option("display.max_columns", 30)
     show = ["model", "lift_r2", "share_r2", "lift_r3", "rho", "mae", "cal_slope",
             "diff_r2", "lo_r2", "hi_r2", "p_r2", "holm_p", "folds_won", "diff_r3",
             "p_r3", "verdict"]
-    print(f"\nPooled, {len(tests)} season-forward folds, {len(wk)} weeks. "
+    print(f"\nPooled, {len(tests)} season-forward folds, {len(wk)} weeks, exact lift. "
           f"Win rule: Holm p < 0.05, diff > 0, and >= {need} of {len(tests)} folds.\n")
-    print(T[show].round(4).to_string(index=False))
+    print(T[["family"] + show].round(4).to_string(index=False))
     o = decision(P, "ridge", 2)
-    print(f"\noracle lift R=2 = {o['oracle_lift']:.4f}; Holm family m = {int(ch.sum())}")
+    fam_m = T.family.value_counts()
+    print(f"\noracle lift R=2 = {o['oracle_lift']:.4f}; ridge share {o['share']:.4f}; "
+          f"Holm m = {fam_m.get('challengers', 0)} challengers, {fam_m.get('baselines', 0)} baselines")
+    print("\nBaseline family, ridge minus baseline, R=2:")
+    for _, r in T[T.family == "baselines"].iterrows():
+        print(f"  vs {r.model:24} {-r.diff_r2:+.4f}  week-block [{-r.hi_r2:+.4f}, {-r.lo_r2:+.4f}] "
+              f"p={r.p_r2:.4f} Holm {r.holm_p:.4f} | season-cluster [{r.season_lo:+.4f}, "
+              f"{r.season_hi:+.4f}] p={r.season_p:.4f} | sign test {int(r.seasons_won)}/"
+              f"{len(tests)} seasons p={r.sign_p:.4f}")
 
     print("\nPer-fold R=2 lift:")
     print(folds.T.rename(index=LABEL).round(3).to_string())
@@ -544,12 +579,32 @@ def self_check() -> int:
     d = pd.DataFrame({"season": 2020, "week": np.repeat(np.arange(40), 12),
                       "y": rng.poisson(8, 480).astype(float)})
     d["s"] = d.y + rng.normal(0, 4, len(d))
+    # The closed form equals the pairwise-sign formula at R=2 ...
     ex = exact_lift(d.season, d.week, d.y, d.s)
-    old, bt.N_DRAWS = bt.N_DRAWS, 4000
-    sim = float(per_week_lift(d, "s", 2)[0].mean())
-    bt.N_DRAWS = old
-    # The exact pairwise lift is the expectation the harness simulates.
-    assert abs(ex - sim) < 0.03, (ex, sim)
+    pw = []
+    for _, g in d.groupby("week"):
+        yy, ss = g.y.to_numpy(), g.s.to_numpy()
+        n = len(g)
+        pw.append((np.sign(ss[:, None] - ss[None, :]) * (yy[:, None] - yy[None, :])).sum()
+                  / (2 * n * (n - 1)))
+    assert abs(ex - np.mean(pw)) < 1e-9, (ex, np.mean(pw))
+    # ... and brute-force enumeration of every roster at R=2 and R=3, with ties
+    # split evenly the way argmax over a random draw splits them.
+    from itertools import combinations
+    yy, ss = rng.integers(0, 20, 9).astype(float), rng.integers(0, 4, 9).astype(float)
+    w = pd.DataFrame({"season": 1, "week": 1, "y": yy, "s": ss})
+    for R in (2, 3):
+        bf = np.mean([yy[[i for i in c if ss[i] == ss[list(c)].max()]].mean() - yy[list(c)].mean()
+                      for c in combinations(range(9), R)])
+        assert abs(per_week_lift(w, "s", R)[0][0] - bf) < 1e-9, (R, bf)
+    # A constant has no lift at all, exactly (the simulation gave it -0.015).
+    assert np.abs(per_week_lift(d.assign(c=1.0), "c", 2)[0]).max() < 1e-12
+    # Season-cluster bootstrap and sign test on a known shape.
+    wk = pd.DataFrame({"season": np.repeat(np.arange(8), 10), "a": 1.0, "b": 0.0})
+    sc = season_cluster(wk, "a", "b", 500)
+    assert sc["season_lo"] == sc["season_hi"] == 1.0 and sc["season_p"] == 0.0
+    st = sign_test(pd.Series([1.0] * 7 + [0.0]), pd.Series([0.5] * 8))
+    assert st["seasons_won"] == 7 and abs(st["sign_p"] - 18 / 256) < 1e-12, st
     assert exact_lift([1] * 4, [1] * 4, [1.0, 5.0, 2.0, 9.0], [0.0] * 4) == 0.0
     assert exact_lift([1, 1], [1, 1], [2.0, 6.0], [0.0, 1.0]) == 2.0
     assert np.allclose(holm([0.01, 0.04, 0.03, 0.005]), [0.03, 0.06, 0.06, 0.02])
