@@ -15,7 +15,7 @@ Everything else follows from that.
 
 | | |
 |---|---|
-| **data** | 14,487 kicker-games, 1999 to 2026, player grain, from nflverse |
+| **data** | 14,457 kicker-games, 1999 to 2026, player grain, from nflverse |
 | **target** | that week's actual fantasy points, from the distance buckets |
 | **ranking** | ridge on 16 named pre-kickoff features |
 | **distribution** | two Poisson count stages convolved through the scoring rule |
@@ -50,9 +50,10 @@ Calibration of the distribution, which a betting line cannot give you:
 
 | threshold | predicted | realised |
 |---|---|---|
-| 15 or more points | 0.0844 | 0.0841 |
+| 15 or more points | 0.0838 | 0.0841 |
 
-Within 5% at every threshold tested.
+Within 5% at every threshold tested (8, 10, 12 and 15 points; full table in
+`METHOD.md`).
 
 **Read that honestly.** The gain is real and small. Kicker is the position where
 streaming on the implied total already captures most of the available value. This
@@ -61,7 +62,7 @@ model is worth having and is not worth agonising over.
 ## Quick start
 
 ```bash
-pip install pandas numpy scikit-learn lightgbm pyarrow scipy
+pip install -r requirements.txt lightgbm pyarrow scipy
 
 python src/kicker_analysis/build_dataset.py     # 14,457 kicker-games, 1999-2026
 python src/kicker_analysis/fourth_down.py       # coach aggression, 2015-2026
@@ -167,3 +168,7 @@ median of 10 chances a season. Not added. Worth re-testing with more seasons.
 includes the two claims that were retracted when the backtest contradicted them.
 
 Data: [nflverse](https://github.com/nflverse/nflverse-data), key-free.
+
+Status: a working research project, last updated 2026-09-22, with weekly boards
+in `reports/` for 2026 weeks 2 and 3. There is no `LICENSE` file in the repo yet,
+so treat the code as all rights reserved until one is added.
