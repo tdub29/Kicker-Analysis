@@ -84,6 +84,33 @@ def current_kickers(hist: pd.DataFrame, season: int) -> pd.DataFrame:
         columns={"week": "last_seen_week"})
 
 
+SLEEPER = SITE.parents[2] / "players-nfl.json"
+
+
+def drop_released(ks: pd.DataFrame) -> pd.DataFrame:
+    """Drop a kicker Sleeper no longer lists on that team.
+
+    The last man who kicked keeps his team's slot until the next game, so a
+    released kicker stayed on the board: Harrison Mevis ranked #2 for the Rams
+    a week after they cut him. A name Sleeper does not know is kept.
+    """
+    if not SLEEPER.exists():
+        print(f"{SLEEPER.name} missing: roster read from game history only")
+        return ks
+    raw = json.loads(SLEEPER.read_text(encoding="utf-8"))
+    teams: dict[str, set] = {}
+    for p in raw.get("players", raw).values():
+        if p.get("position") == "K":
+            key = f"{(p.get('first_name') or '')[:1]}.{p.get('last_name') or ''}"
+            teams.setdefault(key, set()).add({"LAR": "LA"}.get(p.get("team"), p.get("team")))
+    gone = ks.apply(lambda r: r.player_display_name in teams
+                    and r.team not in teams[r.player_display_name], axis=1)
+    if gone.any():
+        print(f"not on that roster per Sleeper, dropped: "
+              f"{', '.join(ks[gone].player_display_name + ' (' + ks[gone].team + ')')}")
+    return ks[~gone]
+
+
 def pseudo_rows(slate: pd.DataFrame, kickers: pd.DataFrame, season: int,
                 week: int, template: pd.DataFrame) -> pd.DataFrame:
     """A feature row per kicker per upcoming game, outcomes left null."""
@@ -148,7 +175,7 @@ def run(week_override: int | None = None) -> pd.DataFrame:
             f"built on stale history is indistinguishable from a current one.")
     print(f"history complete through {season} week {through}")
 
-    ks = current_kickers(hist, season)
+    ks = drop_released(current_kickers(hist, season))
     fut = pseudo_rows(slate, ks, season, week, hist)
     print(f"{season} week {week}: {len(slate)} games, {len(fut)} kickers")
 
