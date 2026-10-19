@@ -11,6 +11,12 @@ touchdowns, and the field goals are close to a coin flip the coach can veto.
 
 Everything else follows from that.
 
+## Ranking and scoring models
+
+![Kicker model workflow: ridge ranking, Poisson scoring distribution, and historical evaluation](docs/images/fantasy-football-04.webp)
+
+Ridge regression orders the weekly board; the count model estimates the scoring distribution. The historical evaluation below explains the results shown here.
+
 ## What it does
 
 | | |
