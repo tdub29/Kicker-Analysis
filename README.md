@@ -143,3 +143,7 @@ median of 10 chances a season. Not added. Worth re-testing with more seasons.
 [METHOD.md](METHOD.md) documents model design, evaluation, and limitations.
 
 Data: [nflverse](https://github.com/nflverse/nflverse-data), key-free.
+
+## More projects
+
+More of my work and contact details are at [twhite.dev](https://twhite.dev).
