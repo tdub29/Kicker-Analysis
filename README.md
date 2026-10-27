@@ -8,6 +8,12 @@ of -0.054, while extra-point-attempt forecasts showed a within-week Spearman
 correlation of 0.299. These results describe the tested models and evaluation
 period; they do not establish a general limit on forecasting either outcome.
 
+## Forecast inputs and results
+
+![Kicker forecast inputs, ranking and count models, and reported backtest results](docs/images/fantasy-football-04.webp)
+
+Model inputs and the reported backtest comparisons. Evaluation details and uncertainty are documented below.
+
 ## What it does
 
 | | |
@@ -143,3 +149,7 @@ median of 10 chances a season. Not added. Worth re-testing with more seasons.
 [METHOD.md](METHOD.md) documents model design, evaluation, and limitations.
 
 Data: [nflverse](https://github.com/nflverse/nflverse-data), key-free.
+
+## More projects
+
+More of my work and contact details are at [twhite.dev](https://twhite.dev).
