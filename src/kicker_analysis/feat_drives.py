@@ -57,6 +57,23 @@ rather than zero, a 4-game window is the four games strictly before, the stall
 rate divides by drives-that-reached rather than by all drives, and OAK collapses
 to LV before any grouping.
 
+Evaluated as a candidate family and not adopted. The first test added these
+columns to the 73-column LightGBM of the time:
+experiments/feature_families/feat_drives_eval.py, output in feat_drives_eval.out
+beside it. That run has 6 folds, not 7, because it ran while 2021 was missing
+from kicker_games.parquet (a gap build_dataset.py has since filled from
+play-by-play); it has not been rerun with 2021 restored. The re-test under the
+shipped ridge, with 2021 and all 8 folds, is
+experiments/feature_families/ridge_retest.py: adding the 21 columns lowers the
+decision lift from 0.427 to 0.418, a change the bootstrap cannot tell from zero,
+and raises MAE (reports/feature_family_ridge_retest.csv).
+
+Input: data/external/pbp_<season>.parquet for every season from FIRST_SEASON on.
+build() reads whatever seasons are in that cache and downloads nothing, so a
+season missing from the cache is silently missing from the table. fourth_down.py
+downloads every season from 2015 on into the same cache; run it first on a
+fresh clone.
+
 Usage:
     python src/kicker_analysis/feat_drives.py               # writes the table
     python src/kicker_analysis/feat_drives.py --self-check

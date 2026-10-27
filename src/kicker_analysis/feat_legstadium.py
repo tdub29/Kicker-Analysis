@@ -57,7 +57,7 @@ prior attempts, so a +3 make surplus there reports as +0.013 rather than +0.150.
 Nothing is dropped by name, and the same rule shrinks a new stadium's first
 season too.
 
-VERIFIED (self_check, and the numbers in reports/feat_legstadium_eval.py):
+VERIFIED (the first three by self_check):
   * every feature is a function of games strictly before the row's own kickoff.
     The game sequence per kicker is built from finished games only and the
     prior-window slices end at the current game's first attempt, never past it.
@@ -68,7 +68,28 @@ VERIFIED (self_check, and the numbers in reports/feat_legstadium_eval.py):
     one-attempt game the same as a five-attempt one.
   * a blocked field goal counts as an attempt and not a make. It is a
     protection failure, but it is also a kick that did not go through, and the
-    alternative (dropping it) inflates every make rate by about half a point.
+    alternative (dropping it) inflates the make rate: by about 1.6 percentage
+    points over every 2015-2026 attempt in the play-by-play, from about 1.1
+    inside 40 yards to about 2.1 from 50 and beyond, where more kicks are
+    blocked (measured 2026-10-26).
+
+The first evaluation, experiments/feature_families/feat_legstadium_eval.py,
+added these columns to the 73-column LightGBM of the time. It had 6 folds, not
+7: it ran while 2021 was missing from kicker_games.parquet, a gap
+build_dataset.py has since filled from play-by-play, and it has not been rerun
+with 2021 restored. Its saved output, legstadium_eval_out.txt beside it, stops
+after the 2024 fold and carries no result table, so that run is not evidence
+either way. The re-test under the shipped ridge, with 2021 and all 8 folds, is
+experiments/feature_families/ridge_retest.py: adding the 13 columns lowers the
+decision lift from 0.427 to 0.396, a change the bootstrap cannot tell from zero,
+and raises MAE slightly (reports/feature_family_ridge_retest.csv).
+
+Inputs: data/external/pbp_<season>.parquet for every season from FIRST_SEASON
+on, data/external/games.csv and data/processed/kicker_games.parquet. The pbp
+seasons are read from whatever is in the cache and nothing is downloaded, so a
+season missing there is silently missing here. fourth_down.py downloads every
+season from 2015 on into the same cache, and build_dataset.py fetches games.csv
+and writes kicker_games.parquet; run both first on a fresh clone.
 
 Usage:
     python src/kicker_analysis/feat_legstadium.py            # writes the table

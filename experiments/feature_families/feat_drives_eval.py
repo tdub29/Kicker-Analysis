@@ -1,8 +1,22 @@
-"""Throwaway: does feat_drives buy anything over the existing feature set?
+"""Does feat_drives buy anything over the existing feature set? A one-off
+measurement harness, not part of the pipeline.
 
 Season-forward CV, test seasons 2019-2025, train on everything strictly before.
 One LightGBM spec, fixed, used for both arms. Nothing is tuned; the only thing
 that changes between the two arms is whether the 21 dv_* columns are in X.
+
+This predates the 16-feature ridge that now orders the board: the baseline is
+every numeric column features.feature_columns() admitted at the time (73 of
+them), and the score is MAE and pooled Spearman, not the decision lift. It has
+no noise control. The ridge re-test of the same family, with one, is
+ridge_retest.py in this folder.
+
+The logged run (feat_drives_eval.out, this script's stdout) has 6 folds, not 7:
+2021 was then missing from kicker_games.parquet. build_dataset.py now fills
+2021 from play-by-play, so a rerun has 7 folds and will not reproduce the log
+exactly. Nothing is written; the printout is the result.
+
+    python experiments/feature_families/feat_drives_eval.py
 """
 from __future__ import annotations
 
@@ -17,7 +31,8 @@ from scipy.stats import spearmanr, ttest_rel, wilcoxon
 from sklearn.metrics import mean_absolute_error
 
 warnings.filterwarnings("ignore")
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+# experiments/feature_families/<this file>, so the repo root is two levels up.
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 from kicker_analysis.features import build_features, feature_columns  # noqa: E402
 from kicker_analysis import feat_drives  # noqa: E402
@@ -26,8 +41,8 @@ PROC = ROOT / "data" / "processed"
 PARAMS = dict(n_estimators=400, learning_rate=0.03, num_leaves=31,
               min_child_samples=40, verbose=-1, random_state=0,
               # n_jobs is a runtime knob, not a hyperparameter, and it is the
-              # same in both arms. Other agents are running in this repo and
-              # LightGBM's default all-cores setting thrashed against them.
+              # same in both arms. A fixed small thread count keeps LightGBM's
+              # default all-cores setting from oversubscribing a busy machine.
               n_jobs=2)
 
 

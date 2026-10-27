@@ -61,13 +61,13 @@ Verified before shipping:
     bears it out.
 
 RESULT, stated up front so nobody re-derives it: THESE FEATURES DO NOT HELP.
-Season-forward over 2019-2025 (6 folds; 2021 is absent from the shipped
-kicker_games.parquet), pooled MAE goes 3.6185 -> 3.5708 with all 27 columns,
-which looks like a 1.3% win at p=0.054. It is not one. The same harness given
-the SAME 27 columns with their values SHUFFLED gains -0.020, -0.036 and +0.002
-on three seeds, averaging -0.018, so most of the nominal gain is what this
-LightGBM does when handed 27 more columns of anything. The real-minus-shuffled
-margin of 0.030 MAE sits inside the 0.038 spread of the shuffle draws.
+Season-forward over 2019-2025, added to the 73-column LightGBM of the time,
+pooled MAE goes 3.6185 -> 3.5708 with all 27 columns, which looks like a 1.3%
+win at p=0.054. It is not one. The same harness given the SAME 27 columns with
+their values SHUFFLED gains -0.020, -0.036 and +0.002 on three seeds, averaging
+-0.018, so most of the nominal gain is what this LightGBM does when handed 27
+more columns of anything. The real-minus-shuffled margin of 0.030 MAE sits
+inside the 0.038 spread of the shuffle draws.
 
 The composite specifically loses the question it was asked: rz_exp_fg_* alone
 moves MAE by -0.0098 (p=0.41) and the two raw columns it is built from move it
@@ -82,9 +82,26 @@ stall half (r = 0.46 against rz_fg_rate_l16), and the efficiency half is not
 forecastable anyway at r = 0.10 year over year. The mechanism is real; the
 incremental information is not.
 
+The evaluation has 6 folds, not 7: it ran while 2021 was missing from
+kicker_games.parquet, a gap build_dataset.py has since filled from play-by-play,
+and it has not been rerun with 2021 restored. Its scripts and logs are in
+experiments/feature_families/ (feat_redzone_eval.py, feat_redzone_control.py and
+their .log files), and its result tables are reports/feat_redzone_results.csv
+and reports/feat_redzone_control.csv. The re-test under the shipped ridge, with
+2021 and all 8 folds, is experiments/feature_families/ridge_retest.py: adding
+the 27 columns lowers the decision lift from 0.427 to 0.370, a loss whose
+bootstrap interval excludes zero, and raises MAE
+(reports/feature_family_ridge_retest.csv).
+
 The module is kept because the columns are correct, cheap and honestly lagged,
 and because a null needs its evidence left on disk. Do not wire it into
 features.py on the strength of the 3.5708.
+
+Input: data/external/pbp_<season>.parquet for every season from FIRST_SEASON on.
+build() reads whatever seasons are in that cache and downloads nothing, so a
+season missing from the cache is silently missing from the table. fourth_down.py
+downloads every season from 2015 on into the same cache; run it first on a
+fresh clone.
 
 Usage:
     python src/kicker_analysis/feat_redzone.py
@@ -136,8 +153,8 @@ FEATURE_COLS = (
     + [f"rzd_fg_rate_l{w}" for w in WINDOWS] + ["rzd_fg_rate_career"]
 )
 
-# The composite the brief asks about, kept separate so it can be tested alone
-# against the two columns it is built from.
+# The composite, expected stalled red-zone trips, kept separate so it can be
+# tested alone against the two columns it is built from.
 COMPOSITE_COLS = [f"rz_exp_fg_l{w}" for w in WINDOWS] + ["rz_exp_fg_career"]
 RAW_PAIR_COLS = ([f"rz_trips_pg_l{w}" for w in WINDOWS] + ["rz_trips_pg_career"]
                  + [f"rz_td_rate_l{w}" for w in WINDOWS] + ["rz_td_rate_career"])
@@ -250,10 +267,10 @@ def build_frame(drives: pd.DataFrame) -> pd.DataFrame:
     dfn = dfn.drop(columns=[c for c in dfn.columns
                             if "trips10" in c or "td10" in c])
 
-    # The composite the brief names: how many drives a team is expected to stall
-    # in the red zone. Trips times the complement of the touchdown rate is the
-    # count of red-zone possessions that did NOT end in six, which is the
-    # kicker's addressable market before the coach's fourth-down choice.
+    # The composite: how many drives a team is expected to stall in the red
+    # zone. Trips times the complement of the touchdown rate is the count of
+    # red-zone possessions that did NOT end in six, which is the kicker's
+    # addressable market before the coach's fourth-down choice.
     for suf in sufs:
         off[f"rz_exp_fg{suf}"] = (off[f"rz_trips_pg{suf}"]
                                   * (1.0 - off[f"rz_td_rate{suf}"]))

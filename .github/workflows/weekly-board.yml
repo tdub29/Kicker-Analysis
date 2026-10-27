@@ -1,0 +1,79 @@
+# Builds the coming week's kicker board before the week's first kickoff and
+# commits it. The commit is the record of what the board said before the games
+# were played, so this job only ever adds a board file that did not exist:
+# predict_week.py refuses to overwrite one, and the commit step fails rather than
+# commit a change to a board that is already tracked.
+name: Weekly board
+
+on:
+  schedule:
+    # Wednesdays at 15:07 UTC, September to January: before Thursday night's
+    # kickoff, and normally after Monday night's result has reached the nflverse
+    # files. If games.csv still lacks it, predict_week.py stops with an error
+    # rather than forecast a game already played. Off the hour, because GitHub
+    # delays jobs queued on it. A Wednesday with no slate starting within
+    # --max-days-ahead days (early September, after week 18) builds nothing and
+    # commits nothing.
+    - cron: "7 15 * 1,9-12 3"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-board
+  cancel-in-progress: false
+
+jobs:
+  board:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # LightGBM thread contention turns a sub-second fit into minutes.
+      OMP_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build the kicker-game table
+        run: python src/kicker_analysis/build_dataset.py
+
+      - name: Build the fourth-down table
+        run: python src/kicker_analysis/fourth_down.py
+
+      - name: Build the board
+        run: python src/kicker_analysis/predict_week.py --max-days-ahead 6
+
+      - name: Commit a new board
+        run: |
+          if ! git diff --quiet -- 'reports/week_*_kickers.csv'; then
+            echo "::error::a tracked board changed; nothing is committed"
+            git diff --stat -- 'reports/week_*_kickers.csv'
+            exit 1
+          fi
+          new=$(git ls-files --others --exclude-standard -- 'reports/week_*_kickers.csv')
+          if [ -z "$new" ]; then
+            echo "no new board this run"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for f in $new; do
+            # reports/week_2026_8_kickers.csv -> season 2026, week 8
+            stem=$(basename "$f" _kickers.csv)
+            season=$(echo "$stem" | cut -d_ -f2)
+            week=$(echo "$stem" | cut -d_ -f3)
+            git add -- "$f"
+            git commit -m "board: $season week $week (pre-kickoff)"
+          done
+          git push origin "HEAD:$GITHUB_REF_NAME"

@@ -35,6 +35,14 @@ occupy the difference:
 Both are then LAGGED by the caller, because a team's rate in the game you are
 predicting is not knowable on Tuesday.
 
+Coverage. Every season from FIRST_SEASON to the current one is requested by
+number through build_dataset.pbp_file (same cache, downloaded if absent), and the
+table is refused unless each season has a plausible number of team-games.
+Building from whatever play-by-play happened to be cached gave a fresh clone
+four seasons out of twelve, the ones build_dataset.py needs for itself, and
+the two coach features were then median-imputed for every other season without
+an error anywhere.
+
 Usage:
     python src/kicker_analysis/fourth_down.py            # writes the table
     python src/kicker_analysis/fourth_down.py --self-check
@@ -44,12 +52,16 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+import tempfile
 
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from kicker_analysis.build_dataset import (  # noqa: E402
+    coverage_problems, live_season, load_games, pbp_file, write_manifest)
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-CACHE = ROOT / "data" / "external"
 OUT = ROOT / "data" / "processed" / "fourth_down.parquet"
 
 # pbp only carries win probability and clean play typing from 2015 on, and 2015
@@ -58,6 +70,15 @@ FIRST_SEASON = 2015
 IN_RANGE_YARDLINE = 38     # 38 + 7 + 10 = a 55 yard attempt
 WP_LO, WP_HI = 0.05, 0.95
 MIN_HALF_SECONDS = 120
+
+# Team-games with at least one fourth down in range, per team-game played. A
+# team-game with none has no row, so the share sits well below 1: the build of
+# 2026-10-26 measured 0.801 (2018) to 0.868 (2026) per season for 2015-2026. A
+# missing season reads 0. On that build, removing the first three weeks of a
+# finished season put it under 0.7 for every season but 2022 and 2025, which
+# needed four, and one or two missing weeks passed. This guards against a lost
+# season or a lost month of play-by-play, not a lost week.
+MIN_TEAM_GAME_SHARE = 0.70
 
 COLS = ["season", "week", "season_type", "game_id", "posteam", "down", "ydstogo",
         "yardline_100", "play_type", "field_goal_attempt", "punt_attempt",
@@ -105,17 +126,36 @@ def team_game_rates(pbp: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def build(first_season: int = FIRST_SEASON) -> pd.DataFrame:
-    frames = []
-    for path in sorted(CACHE.glob("pbp_*.parquet")):
-        season = int(path.stem.split("_")[1])
-        if season < first_season:
-            continue
-        frames.append(team_game_rates(pd.read_parquet(path, columns=COLS)))
-    if not frames:
-        raise SystemExit(f"no pbp parquet files in {CACHE}")
-    return pd.concat(frames, ignore_index=True).sort_values(
+def build(first_season: int = FIRST_SEASON, last_season: int | None = None,
+          games: pd.DataFrame | None = None, season_file=pbp_file) -> pd.DataFrame:
+    """Team-game rates for every season from `first_season` to the current one.
+
+    `season_file(season)` returns the play-by-play parquet for one season; the
+    default fetches it into the shared cache when absent. Raises SystemExit
+    naming any season that is missing or thin against the schedule.
+    """
+    games = load_games() if games is None else games
+    last = live_season(games) if last_season is None else last_season
+    if last < first_season:
+        raise SystemExit(f"no seasons to build: {first_season} to {last}")
+    frames, failed = [], {}
+    for season in range(first_season, last + 1):
+        try:
+            frames.append(team_game_rates(pd.read_parquet(season_file(season), columns=COLS)))
+        except Exception as exc:                      # offline, 404, unreadable
+            failed[season] = f"{type(exc).__name__}: {str(exc)[:120]}"
+    if failed:
+        raise SystemExit("could not read play-by-play for:\n"
+                         + "\n".join(f"  {s}: {e}" for s, e in failed.items())
+                         + f"\nevery season from {first_season} to {last} is required; "
+                           "nothing was written")
+    df = pd.concat(frames, ignore_index=True).sort_values(
         ["season", "week", "team"]).reset_index(drop=True)
+    problems = coverage_problems(df, games, first_season, last, MIN_TEAM_GAME_SHARE)
+    if problems:
+        raise SystemExit("fourth-down table is missing or incomplete for:\n  "
+                         + "\n  ".join(problems) + "\nnothing was written")
+    return df
 
 
 def main() -> int:
@@ -124,6 +164,9 @@ def main() -> int:
     df.to_parquet(OUT, index=False)
     print(f"wrote {OUT.relative_to(ROOT)}: {len(df):,} team-games, "
           f"{df.season.min()}-{df.season.max()}")
+    per = df.groupby("season").size()
+    print(f"  team-games per season: {per.min():,} ({per.idxmin()}) "
+          f"to {per.max():,} ({per.idxmax()})")
     print(f"  fourth downs in range per team-game: mean "
           f"{df.fourth_in_range.mean():.2f}, max {df.fourth_in_range.max()}")
     print(f"  field goal share: {df.fg_share.mean():.3f}  "
@@ -134,6 +177,8 @@ def main() -> int:
     print("\n  season  go_rate  fg_share")
     for s, r in yr.iterrows():
         print(f"    {s}   {r.go:.3f}    {r.fg:.3f}")
+    m = write_manifest()
+    print(f"\nwrote {m.relative_to(ROOT)}")
     return 0
 
 
@@ -173,6 +218,43 @@ def self_check() -> int:
     # two halfway through the file.
     d2 = pd.DataFrame([{**base, "posteam": "OAK", "field_goal_attempt": 1}])
     assert team_game_rates(d2).iloc[0].team == "LV"
+
+    # build() asks for every season by number, not for whatever is cached, and
+    # refuses a season that comes back empty. Three settled seasons of one game,
+    # each team with one field goal decision; files live in a temporary directory.
+    sched = pd.DataFrame({"season": [2015, 2016, 2017], "week": 1,
+                          "home_team": "KC", "away_team": "BAL", "home_score": 20})
+    with tempfile.TemporaryDirectory() as tmp:
+        requested = []
+
+        def season_file(season: int, empty: tuple = ()) -> pathlib.Path:
+            requested.append(season)
+            plays = [] if season in empty else [
+                {**base, "season": season, "posteam": t, "field_goal_attempt": 1}
+                for t in ("KC", "BAL")]
+            path = pathlib.Path(tmp) / f"pbp_{season}.parquet"
+            pd.DataFrame(plays, columns=COLS).to_parquet(path)
+            return path
+
+        df = build(2015, 2017, sched, season_file)
+        assert requested == [2015, 2016, 2017], requested
+        assert len(df) == 6 and sorted(df.season.unique()) == [2015, 2016, 2017]
+        try:
+            build(2015, 2017, sched, lambda s: season_file(s, empty=(2016,)))
+            raise AssertionError("a season with no team-games must stop the build")
+        except SystemExit as exc:
+            assert "2016: 0 team-games" in str(exc), exc
+
+        # A season that cannot be fetched is named, not skipped.
+        def unreachable(season: int) -> pathlib.Path:
+            if season == 2017:
+                raise OSError("offline")
+            return season_file(season)
+        try:
+            build(2015, 2017, sched, unreachable)
+            raise AssertionError("a season that cannot be fetched must stop the build")
+        except SystemExit as exc:
+            assert "2017: OSError: offline" in str(exc), exc
     print("fourth_down self-check ok")
     return 0
 

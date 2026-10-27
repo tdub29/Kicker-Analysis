@@ -12,14 +12,17 @@ The inner AND outer score is the EXACT expected R=2 decision lift: over every
 pair of kickers in a week, the gain from starting the one the score prefers.
 backtest.per_week_lift computes it in closed form for any roster size, so tuning
 and evaluation aim at the same number and no comparison carries draw noise. (The
-first run scored the outer folds with a 300-draw simulation; a reviewer caught it.)
+first run, commit 3c51cf7, tuned on the exact lift but scored the outer folds
+with backtest.py's 300-draw simulation, which moved pooled lifts by 0.01 to 0.02
+and scored a constant at -0.015 instead of 0. backtest.py is exact now, so the
+two agree.)
 
 Evaluation is the repo's harness: backtest.decision and backtest.per_week_lift
 for the lift, backtest.rho for within-week Spearman, backtest.boot_lift for the
 paired week-block bootstrap against the shipped ridge. Rows are laid out in the
 order backtest.py uses, so the reference rows reproduce its numbers exactly.
 
-Two multiplicity families, fixed before the run:
+Two multiplicity families:
   challengers  the 14 candidates vs the shipped ridge, Holm m = 14. A challenger
                wins only if Holm p < 0.05, the difference is positive, AND it
                beats the ridge in at least 6 of the 8 test seasons.
@@ -28,10 +31,30 @@ Two multiplicity families, fixed before the run:
                m = 2. Each also gets a season-cluster bootstrap (whole seasons
                resampled, 8 clusters) and a two-sided sign test across seasons,
                because 141 weeks are not 141 independent draws when the
-               ridge's own lift swings 0.19 to 0.63 by season.
+               ridge's own lift runs from about 0.19 to 0.61 by season
+               (reports/model_bakeoff_folds.csv).
 The compound model and the constant are reported unadjusted, as description.
 
-This file only reads. It does not touch the production model or the board.
+This split was NOT fixed before the first run, and whether the line claim clears
+0.05 can depend on it.
+The first run (commit 3c51cf7) put all 18 comparisons in one Holm family: the 14
+challengers plus the compound model, the line, the career average and the
+constant. There ridge vs the implied total had a raw p of 0.0054 and a Holm p
+of 0.081: not significant at 0.05. The revision the same day (commit f04d00e,
+notes/model-selection-2026-09-29.md) split the family in two, on the argument
+that the two baseline claims were already in the README before the bake-off
+existed and should not pay for the 14 challenger questions asked after them.
+The argument is defensible, but it was made after seeing that result, so read
+the baseline family's Holm p as a post hoc choice. In one family of 18 the line
+comparison ranks third or fourth, so its Holm p is 15 or 16 times its raw p and
+passes 0.05 only while the raw p is below about 0.003. On the tracked
+reports/model_bakeoff_summary.csv that gives 0.016; the first run's raw p was
+above that bar, and a rerun on newer data can land on either side of it. The
+challenger verdicts do not depend on the split: no challenger is significant
+under either scheme.
+
+The full run writes only its own reports/model_bakeoff_* files. It does not
+touch the production model or the board.
 
     python src/kicker_analysis/model_bakeoff.py            # full run, 8 folds
     python src/kicker_analysis/model_bakeoff.py --quick    # 3 folds, 1 inner fold, smoke test
