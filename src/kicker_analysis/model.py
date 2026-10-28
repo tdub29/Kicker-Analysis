@@ -4,37 +4,44 @@ into a full predictive law.
 WHY THIS SHAPE, which is the whole argument:
 
 Fantasy points decompose exactly. points = 3*short + 4*mid + 5*long + 1*PAT, and
-over the 2015-2026 regular-season rows the field-goal part's variance is about
-102% of the total's, the PAT part's about 10%, and twice their covariance about
--12% (reports/variance_decomposition.csv has the numbers). That negative
+over the 2015-2025 regular-season rows the field-goal part's variance is 101.8%
+of the total's, the PAT part's 10.5%, and twice their covariance -12.4%
+(reports/variance_decomposition.csv, written by backtest.py). That negative
 covariance is the red-zone substitution: a drive that ends in a touchdown pays 1
 point, the same drive stalling pays 3.
 
 Then the fact that decides the design. Season-forward, out of sample, the count
 stage has close to no skill on weekly field-goal attempts: R2 against the
-training mean is about +0.003 with an interval that spans zero, and within-week
-Spearman about 0.07. On PAT attempts it has real skill, R2 about +0.13 and
-Spearman about 0.35 (reports/component_skill.csv, written by backtest.py). The
-half of the target carrying almost all the variance is close to unforecastable;
-the half with real skill carries a tenth of it. A single regression on total
+training-season mean is +0.003 (week-block 95% CI -0.003 to +0.009), and
+within-week Spearman 0.068. On PAT attempts it has real skill, R2 +0.126 and
+Spearman 0.348 (reports/component_skill.csv, written by backtest.py). The half
+of the target carrying almost all the variance is close to unforecastable; the
+half with real skill carries about a tenth of it. A single regression on total
 points cannot show you that, and every attempt to improve the total is fighting
 the unforecastable half.
 
 So there are two models here, each used for the job it does better:
 
-  RidgeRanker          orders the board. On the decision metric it beats the
+  RidgeRanker          orders the board. Pooled over the 8 folds it beats the
                        count model's expected points, the betting line alone
-                       and a kicker's career average (reports/backtest_summary.csv).
+                       and a kicker's career average on the decision metric
+                       (reports/backtest_summary.csv). Its edge over the line
+                       is clear week to week and not established season to
+                       season: ahead in 6 of 8 seasons, t-test on the season
+                       means p = 0.095 (reports/season_level_tests.csv).
   CompoundKickerModel  predicts the two counts separately and combines them by
                        the scoring rule, which gives P(y >= x) for every
                        threshold with no threshold model trained. Pooled over
-                       the 8 folds its predicted rates land within about 5% of
-                       the realised rates at 8, 10, 12 and 15 points, but it
-                       discriminates weakly (AUC about 0.55 to 0.58), and at
-                       15 points its Brier skill over a constant at the
-                       training base rate is indistinguishable from zero
-                       (reports/calibration_summary.csv). Its docstring says why
-                       the pooled match is partly errors offsetting.
+                       the 8 folds its P(y >= 15) averages 0.0839 against a
+                       realised 0.0841, but it over-predicts 8+ and 10+ by
+                       about two percentage points (+0.021 and +0.018;
+                       backtest.py prints week-block intervals that exclude
+                       zero). Kicker by kicker it is weak: at 15 points its
+                       AUC is 0.55, its calibration slope 0.55, and its Brier
+                       skill over a constant at the training base rate +0.001
+                       (95% CI -0.004 to +0.006), no better than that constant
+                       (reports/calibration_summary.csv). Its docstring lists
+                       where the draw is knowingly wrong.
 
 RETRACTED, because the backtest did not support it. An earlier version of this
 docstring said a gradient-boosted mean ranking hit 15+ less often than random
@@ -44,11 +51,10 @@ model's expected-points ranking and its P(y>=15) ranking pick a 15-point week
 more often than a random pick does (the constant row, whose ties split at
 random), and the second board adds nothing on top of the first.
 
-Capacity is small on purpose. On a few thousand training rows a 100-tree,
-7-leaf count stage predicts better out of sample than the 500-tree, 31-leaf
-settings of the first harness (legacy/evaluate_v1.py): with those settings and
-the same Poisson objective, the compound model's expected-points MAE over the 8
-folds was about 0.05 worse.
+Capacity is small on purpose: 100 trees of 7 leaves per count stage, on a few
+thousand training rows, against the 500-tree, 31-leaf settings of the first
+harness (legacy/evaluate_v1.py). That is a judgment, not a tuned result; no
+committed code compares the two settings.
 
 This module is a library: backtest.py runs the season-forward backtest and
 predict_week.py writes this week's board.
@@ -139,33 +145,34 @@ class RidgeRanker:
     Scored on the decision metric (exact expected points per week gained by
     starting the better of two random kickers, 8 season-forward folds), it
     ranks ahead of the compound count model's expected points, the Vegas
-    implied total alone and a kicker's career average. The pooled numbers are
-    in reports/backtest_summary.csv, the season-level tests in
-    reports/season_level_tests.csv, and the bake-off against fourteen tuned
-    challengers in notes/model-selection-2026-09-29.md. Its margin over the
-    line alone is consistent in the pooled weekly average and thin season by
-    season: it wins 6 of the 8 test seasons. So the count model is the
-    probability machine and this is the ranker.
+    implied total alone and a kicker's career average
+    (reports/backtest_summary.csv). Its margin over the line alone, +0.074
+    points a week, is clear when weeks are resampled (95% CI +0.024 to
+    +0.124) and not significant when each test season is one observation:
+    ahead in 6 of 8, t-test p = 0.095 (reports/season_level_tests.csv). In
+    the bake-off none of fourteen challengers could be told apart from it
+    after Holm correction (reports/model_bakeoff_summary.csv,
+    notes/model-selection-2026-09-29.md).
+    So the count model is the probability machine and this is the ranker.
 
     alpha = 100 is a fixed choice, not a tuned optimum. The design matrix is
     collinear by construction (lagged windows of the same quantity), so heavy
     shrinkage is expected, but the data do not pin alpha down. In the nested
     bake-off an inner loop choosing alpha on training seasons only picked
-    values anywhere from 1 to 10,000 across the 8 folds
+    values from 100 to 10,000 across the 8 folds, 300 in five of them
     (reports/model_bakeoff_params.csv), and that nested ridge did not beat the
-    fixed alpha = 100 (reports/model_bakeoff_summary.csv).
+    fixed alpha = 100: -0.005 points a week, 95% CI -0.019 to +0.009
+    (reports/model_bakeoff_summary.csv).
 
-    Noise control, because adding columns can move MAE on its own: at
-    alpha = 100, columns of pure Gaussian noise make this ridge's pooled MAE
-    worse on average, not better, and more so the more are added (13 to 61
-    noise columns on top of the 16 features, 50 draws per width, in
-    experiments/feature_families/ridge_retest.py and
-    reports/feature_family_ridge_retest.csv). Against the same ridge on the
-    implied total alone, the 16 named features lower pooled MAE by about
-    0.015 over the 8 folds (3.472 against 3.486), so that gain is not a
-    column-count artifact, which a with-versus-without comparison alone could
-    not establish. It is a small gain in MAE; the case for the ridge rests on
-    the decision metric above.
+    Noise control, because adding columns can move a score on its own: at
+    alpha = 100, columns of pure Gaussian noise make this ridge worse, not
+    better, and more so the more are added. Averaged over 50 draws, 13 noise
+    columns on top of the 16 features move pooled MAE from 3.472 to 3.477 and
+    decision lift from 0.427 to 0.406; 61 move them to 3.503 and 0.338
+    (experiments/feature_families/ridge_retest.py,
+    reports/feature_family_ridge_retest.csv). So under this ridge a column
+    cannot improve the score by its count alone. The case for the ridge rests
+    on the decision metric above, not on MAE.
     """
 
     def __init__(self, features: list[str] | None = None, alpha: float = 100.0):
@@ -191,42 +198,43 @@ class CompoundKickerModel:
 
     Kept for what a point forecast cannot give: a whole predictive distribution
     (floor, median, ceiling, P(y >= x) at any threshold) without a model per
-    threshold. Pooled over the 8 backtest folds its predicted rates land within
-    about 5% of the realised rates at 8, 10, 12 and 15 points
-    (reports/calibration_summary.csv). It is NOT used for ranking; see
-    RidgeRanker for why.
+    threshold. Pooled over the 8 backtest folds its P(y >= 15) averages what
+    happened, it over-predicts 8+ and 10+, and kicker by kicker it barely beats
+    a constant at the base rate: the module docstring has the numbers, and
+    reports/calibration_summary.csv and calibration_reliability.csv the tables.
+    It is NOT used for ranking; see RidgeRanker for why.
 
     What _draw actually does, and where it is knowingly wrong:
 
       counts    each count is a binomial with n = max(ceil(3 * lambda), 1)
                 trials and p = lambda / n, so its mean is lambda and its
-                variance/mean is 1 - lambda / n: 0.67 to 0.73 for the lambdas
-                this model predicts, about 0.69 on average. That ratio is
-                fixed by the 3, not fitted. The counts are under-dispersed
-                (raw variance/mean about 0.84 for FG attempts and 0.88 for
-                PAT attempts, 2015-2026), which is why a Poisson draw is not
-                used: swapped in with everything else unchanged, it
-                over-predicts the pooled P(y >= 15) by about a third. But out
-                of sample the squared residuals over lambda come to about 0.8
-                for both counts, so the fixed 0.69 is somewhat too narrow.
-      FG, PAT   drawn independently. Out of sample their residuals correlate
-                at about -0.25 pooled and are negative in every test season
-                (-0.18 to -0.29): a drive that ends in a touchdown is one that
-                did not end in a field goal. Ignoring that makes the simulated
-                total wider than it should be.
+                variance/mean is 1 - lambda / n: at least 2/3, under 3/4 once
+                lambda is 1 or more, and set by the 3, not fitted. Weekly
+                attempt counts are under-dispersed (variance below the mean),
+                which is why a Poisson draw is not used: it would be too wide.
+                But they are less under-dispersed than this, both raw and
+                around the count stages' out-of-sample means, so the fixed
+                ratio makes each count somewhat too narrow.
+      FG, PAT   drawn independently. They are not independent: out of sample,
+                a kicker's FG-attempt residual (attempts minus the count
+                stage's mean) and his PAT-attempt residual are negatively
+                correlated, pooled and in each of the 8 test seasons. A drive
+                that ends in a touchdown is one that did not end in a field
+                goal. Ignoring that makes the simulated total wider than it
+                should be.
       distance  makes are split into the 3-, 4- and 5-point tiers with random
                 per-draw weights (uniform times the league mix, renormalised)
-                and rounding, with the long tier taking the remainder. The
-                random weights, and the rounding on top of them, pull the
-                split away from the league mix toward the longer, rarer
-                tiers, which adds about 0.07 points per make (about 3.60
-                against the mix's 3.53).
+                and rounding, with the long tier taking the remainder. That
+                pulls the split away from the league mix toward the longer,
+                rarer tiers, so each make is worth a little more than the mix
+                says.
 
-    So the pooled 15+ match is partly these errors offsetting: counts too
-    narrow, a total too wide, and makes worth slightly too much. With the makes
-    split at exactly the league mix the same draw predicts P(y >= 15) about 6%
-    below the realised rate. Per row it discriminates weakly (AUC about 0.55 at
-    15 points), so read P(15+) as right on average rather than sharp per kicker.
+    No committed code prints these three checks; they were run against
+    reports/backtest_predictions.parquet and the kicker-game table. So the
+    pooled match at 15 points is not evidence that the draw is right: the
+    counts are too narrow, the total too wide and the makes slightly too
+    valuable, and errors in opposite directions can offset. Read P(15+) as a
+    rough flag for upside, right on average and not sharp per kicker.
     """
 
     def __init__(self, features: list[str] | None = None, n_sims: int = N_SIMS):
@@ -264,7 +272,7 @@ class CompoundKickerModel:
         # Counts are UNDER-dispersed, so a raw Poisson draw is too wide, and a
         # negative binomial could only widen it further. A binomial with mean
         # lambda over ceil(3 * lambda) trials narrows it: variance/mean is
-        # 1 - lambda / trials, about 0.69, a constant set by the 3 rather than
+        # 1 - lambda / trials, at least 2/3, a constant set by the 3 rather than
         # fitted (the class docstring says how that compares with the data).
         # FG and PAT counts are drawn independently of each other.
         def counts(lam):
