@@ -78,6 +78,7 @@ REPORTS = ROOT / "reports"
 
 FIRST_SEASON = 2015          # the extra point moved to the 33, and pbp wp starts here
 FIRST_TEST_SEASON = 2018
+LAST_TEST_SEASON = 2025      # backtest.LAST_TEST: 2026 is scored live, not as a fold
 # A season enters the pooled table only with enough distinct weeks to be an
 # estimate rather than an anecdote. The old guard was `len(test) < 50` rows,
 # a magic number unrelated to stability: 32 more rows would have flipped a
@@ -285,9 +286,10 @@ def run() -> dict:
     df = load()
     feats = feature_columns(df)
     seasons = sorted(df.season.unique())
-    test_seasons = [s for s in seasons if s >= FIRST_TEST_SEASON
+    test_seasons = [s for s in seasons if FIRST_TEST_SEASON <= s <= LAST_TEST_SEASON
                     and df[df.season == s].week.nunique() >= MIN_TEST_WEEKS]
-    skipped = [int(s) for s in seasons if s >= FIRST_TEST_SEASON and s not in test_seasons]
+    skipped = [int(s) for s in seasons
+               if FIRST_TEST_SEASON <= s <= LAST_TEST_SEASON and s not in test_seasons]
     print(f"{len(df):,} kicker-games {df.season.min()}-{df.season.max()}, {len(feats)} features")
     print(f"test seasons scored: {[int(s) for s in test_seasons]}")
     if skipped:

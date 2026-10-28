@@ -133,6 +133,7 @@ HEADLINE_SEASON = 2025
 # The same split as backtest.py, restated so this file does not depend on two
 # constants that module does not promise to keep.
 FIRST_TEST = 2018
+LAST_TEST = 2025
 MIN_WEEKS = 8
 N_BOOT = 10000
 SEED = 0
@@ -347,7 +348,7 @@ def season_forward(df: pd.DataFrame, base: list[str], arms: dict,
     the mechanism predicts it positive (more willingness to kick long, more
     kicker points).
     """
-    tests = [s for s in sorted(df.season.unique()) if s >= first_test
+    tests = [s for s in sorted(df.season.unique()) if first_test <= s <= LAST_TEST
              and df[df.season == s].week.nunique() >= MIN_WEEKS]
     out, coefs = [], {a: {} for a in arms}
     for s in tests:
