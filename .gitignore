@@ -4,25 +4,30 @@ __pycache__/
 *.pyo
 *.pyd
 *.egg-info/
+/build/
+/dist/
+.pytest_cache/
 .venv/
 .env/
 
 # Jupyter
 .ipynb_checkpoints/
 
-# Derived data. Every one of these is rebuilt by the scripts in src/, so
-# tracking them would put 100+ MB of re-downloadable cache in the history for
-# no benefit. `python src/kicker_analysis/build_dataset.py` refetches and
-# rebuilds from scratch.
-/data/external/
-/data/interim/
-/data/processed/
-/data/outputs/
+# Data. Nothing under data/ is tracked. data/external/ caches the nflverse
+# downloads, 100+ MB that would sit in the history for no benefit, and
+# data/processed/ holds the tables built from them; `python
+# src/kicker_analysis/build_dataset.py` refetches and rebuilds both from
+# scratch. The whole directory is ignored, not just those two, because the
+# retired layout (legacy/config.py and legacy/configs/base.yaml) also set aside
+# data/raw/, data/interim/ and data/outputs/, and an older checkout may still
+# hold files there.
+/data/
 
-# Backtest artifacts. The small CSVs ARE tracked, because they are the evidence
-# behind the numbers in METHOD.md and a reader should not have to re-run an
-# eight-fold backtest to check a claim. The parquet prediction dumps are not:
-# they are large and regenerable from the same command.
+# Backtest artifacts. The small CSVs and reports/data_manifest.json ARE tracked:
+# they are the evidence behind the numbers in README.md and METHOD.md and the
+# record of which input bytes produced them, and a reader should not have to
+# re-run an eight-fold backtest to check a claim. The parquet prediction dumps
+# are not: they are large and regenerable from the same command.
 /reports/*.parquet
 
 # OS files

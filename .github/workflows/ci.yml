@@ -1,0 +1,50 @@
+# Runs tests/ through pytest: every module's offline --self-check and
+# scripts/run_pipeline.py's own checks (tests/test_self_checks.py), and the
+# repository hygiene checks, no personal absolute paths in committed text and
+# no dead relative links or images in README.md and METHOD.md
+# (tests/test_repo_hygiene.py). No data is downloaded: the self-checks build
+# their own synthetic frames, and the test harness blocks outbound TCP inside
+# each check to keep that true.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  self-checks:
+    name: self-checks (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    env:
+      # LightGBM thread contention turns a sub-second fit into minutes.
+      OMP_NUM_THREADS: "1"
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Self-checks
+        run: python -m pytest -q

@@ -15,6 +15,16 @@ gradient booster, and "more columns changed the answer" is not the same claim as
 
 The shuffle uses a fixed seed and is run three times with different seeds,
 because one draw of a 27-column control is itself noisy.
+
+It reads the frame and the results feat_redzone_eval.py left behind
+(reports/_feat_redzone_frame.parquet, reports/_feat_redzone_base.json,
+reports/feat_redzone_results.csv), so run that first. The control is scored on
+exactly the folds that run used, read from its results, so the two stay paired
+fold for fold. The logged run (feat_redzone_control.log, per-draw results in
+reports/feat_redzone_control.csv) had 6 folds because 2021 was then missing
+from kicker_games.parquet; build_dataset.py has since filled it.
+
+    python experiments/feature_families/feat_redzone_control.py
 """
 from __future__ import annotations
 
@@ -28,13 +38,13 @@ from lightgbm import LGBMRegressor
 from scipy.stats import spearmanr
 from sklearn.metrics import mean_absolute_error
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+# experiments/feature_families/<this file>, so the repo root is two levels up.
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 from kicker_analysis import feat_redzone                       # noqa: E402
 
 REPORTS = ROOT / "reports"
 RZ = feat_redzone.FEATURE_COLS
-TEST_SEASONS = [2019, 2020, 2022, 2023, 2024, 2025]     # 2021 is not in the data
 
 
 def fit(Xtr, ytr, Xte):
@@ -49,11 +59,13 @@ def main() -> int:
     base = json.loads((REPORTS / "_feat_redzone_base.json").read_text())
     cols = base + RZ
     real = pd.read_csv(REPORTS / "feat_redzone_results.csv")
+    # The folds the real run scored, so the control is paired with it exactly.
+    test_seasons = sorted(int(s) for s in real.season.unique())
 
     rows = []
     for seed in (1, 2, 3):
         rng = np.random.default_rng(seed)
-        for s in TEST_SEASONS:
+        for s in test_seasons:
             tr, te = df[df.season < s].copy(), df[df.season == s].copy()
             # Shuffle within each split: the control must not become a channel
             # for test-set information, only a destroyer of the real signal.

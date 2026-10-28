@@ -1,3 +1,12 @@
+"""YAML config loader for the retired pipeline. Moved here from src/kicker_analysis/.
+
+Only `legacy/pipeline.py` and the old `scripts/run_pipeline.py` ever called it,
+with `legacy/configs/base.yaml` (seasons 2005 to 2022). The current modules do
+not read a config file: each states its own window as a named constant next to
+the reason for it (`FIRST_SEASON = 2015` in fourth_down.py and model.py,
+`FIRST_TEST = 2018` in backtest.py), so a season range cannot change without
+the code that depends on it being in the same diff.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

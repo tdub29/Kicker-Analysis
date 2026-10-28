@@ -1,9 +1,25 @@
 """Does feat_legstadium earn its place? Season-forward, with and without.
 
-Throwaway measurement script, not part of the pipeline. Same protocol both
+A one-off measurement harness, not part of the pipeline. Same protocol both
 ways: identical rows, identical folds, identical LightGBM settings, the only
 difference being whether FEATURE_COLS is appended to the design matrix. Nothing
-is tuned; the hyperparameters are the ones the assignment fixed.
+is tuned; the hyperparameters are the same fixed spec the red-zone and drive
+evaluations in this folder use, so the three families are judged alike.
+
+This predates the 16-feature ridge that now orders the board: the baseline is
+every numeric column features.feature_columns() admitted at the time (73 of
+them), and the score is MAE and pooled Spearman, not the decision lift. It has
+no noise control. The ridge re-test of the same family, with one, is
+ridge_retest.py in this folder.
+
+NO RESULT IS ON RECORD from this script. Its saved stdout,
+legstadium_eval_out.txt, stops after "fold 2024 done": the run never reached the
+2025 fold or the summary, and reports/feat_legstadium_results.csv, which it
+writes at the very end, was never produced. That run had 2021 missing from
+kicker_games.parquet (6 folds); build_dataset.py now fills 2021 from
+play-by-play, so a rerun has 7.
+
+    python experiments/feature_families/feat_legstadium_eval.py
 """
 from __future__ import annotations
 
@@ -18,15 +34,17 @@ from scipy.stats import spearmanr, ttest_rel, wilcoxon
 from sklearn.metrics import mean_absolute_error
 
 warnings.filterwarnings("ignore")
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+# experiments/feature_families/<this file>, so the repo root is two levels up.
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 from kicker_analysis.features import build_features, feature_columns  # noqa: E402
 from kicker_analysis import feat_legstadium as LS                     # noqa: E402
 
 PROC = ROOT / "data" / "processed"
-# n_jobs is pinned only because this box is running many agents at once and
-# oversubscribed OpenMP threads make the fits take minutes instead of seconds.
-# It does not change the fitted model.
+REPORTS = ROOT / "reports"
+# n_jobs is a runtime setting, not a hyperparameter, and it is the same in both
+# arms. A fixed small thread count keeps OpenMP from oversubscribing a busy
+# machine, where the fits otherwise take minutes instead of seconds.
 PARAMS = dict(n_estimators=400, learning_rate=0.03, num_leaves=31,
               min_child_samples=40, verbose=-1, random_state=0, n_jobs=2)
 TEST_SEASONS = range(2019, 2026)
@@ -54,11 +72,10 @@ def main() -> int:
     rows = []
     for s in TEST_SEASONS:
         tr, te = df[df.season < s], df[df.season == s]
-        # kicker_games.parquet as built has NO 2021 rows at all: the nflverse
-        # kicking release is missing that season and build_dataset.py only
-        # backfills from pbp for seasons after RELEASE_LAST_SEASON. Same
-        # skip-if-tiny rule evaluate.py already uses, so the fold count drops
-        # from 7 to 6 for both arms identically.
+        # A season with almost no rows is skipped for both arms identically, the
+        # same rule evaluate.py uses. When the saved log was made this dropped
+        # 2021: the nflverse kicking release has no 2021 rows and the build then
+        # backfilled only seasons after RELEASE_LAST_SEASON from pbp.
         if len(te) < 50:
             print(f"  fold {s} skipped, {len(te)} rows in the dataset", flush=True)
             continue
@@ -115,9 +132,14 @@ def main() -> int:
     # The stadium question specifically: is the venue index anything the model
     # does not already get from is_dome, and does the SIGN hold out of sample?
     print("\nstadium index, out-of-sample check:")
-    print(f"  corr(stad_fg_oe, is_dome) = {df.stad_fg_oe.corr(df.is_dome):+.3f}")
-    print(f"  corr(stad_fg_oe, wind_outdoor) = "
-          f"{df.stad_fg_oe.corr(df.wind_outdoor):+.3f}")
+    # Day-of weather columns such as wind_outdoor are no longer carried by every
+    # build of the frame; a missing one is reported, not fatal, so the run still
+    # reaches the results table it writes last.
+    for col in ("is_dome", "wind_outdoor"):
+        if col in df.columns:
+            print(f"  corr(stad_fg_oe, {col}) = {df.stad_fg_oe.corr(df[col]):+.3f}")
+        else:
+            print(f"  corr(stad_fg_oe, {col}): no {col} column in this frame")
     # Per test season, split venues at the median prior index and compare the
     # ACTUAL make rate of the kicks played there that season.
     att = LS.load_attempts()
@@ -154,7 +176,7 @@ def main() -> int:
         print(f"  Denver ({den.stadium[j]}): index {den.stad_fg_oe[j]:+.4f}, "
               f"rank {j + 1} of {len(den)}, {int(den.stad_fg_att_prior[j])} prior attempts")
 
-    res.to_csv(ROOT / "reports" / "feat_legstadium_results.csv", index=False)
+    res.to_csv(REPORTS / "feat_legstadium_results.csv", index=False)
     return 0
 
 

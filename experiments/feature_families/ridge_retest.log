@@ -1,0 +1,52 @@
+5,943 modelling rows, 4,211 test rows in 141 weeks, test seasons 2018-2025 (8 folds)
+16 baseline features; families: red-zone +27, drives +21, leg/stadium +13, all three +61; 50 noise draws per width
+
+  noise x13  lift 0.4055 (sd 0.0106, 0.3797 to 0.4363)  MAE 3.4773  rho 0.1627
+  noise x21  lift 0.3902 (sd 0.0166, 0.3483 to 0.4335)  MAE 3.4814  rho 0.1569
+  noise x27  lift 0.3791 (sd 0.0149, 0.3477 to 0.4139)  MAE 3.4860  rho 0.1520
+  noise x61  lift 0.3375 (sd 0.0195, 0.2950 to 0.3843)  MAE 3.5028  rho 0.1350
+  shuffled red-zone     lift 0.3948 (sd 0.0129, 0.3717 to 0.4319)  MAE 3.4794  rho 0.1588
+  shuffled drives       lift 0.4025 (sd 0.0140, 0.3654 to 0.4370)  MAE 3.4772  rho 0.1616
+  shuffled leg/stadium  lift 0.4031 (sd 0.0136, 0.3696 to 0.4323)  MAE 3.4768  rho 0.1616
+  shuffled all three    lift 0.3623 (sd 0.0223, 0.3208 to 0.4089)  MAE 3.4925  rho 0.1450
+
+Per season R=2 lift, real arms:
+      baseline  red-zone  drives  leg/stadium  all three
+2018    0.4172    0.3174  0.4666       0.4614     0.4103
+2019    0.3902    0.3709  0.3710       0.2596     0.2140
+2020    0.5356    0.5011  0.5158       0.4488     0.3866
+2021    0.3722    0.3523  0.3249       0.3634     0.3773
+2022    0.2035    0.0823  0.1820       0.1426     0.0790
+2023    0.3717    0.2536  0.3928       0.3883     0.3041
+2024    0.6001    0.5761  0.5966       0.5883     0.5238
+2025    0.5303    0.5087  0.4986       0.5108     0.4783
+
+Summary (noise and shuffled rows are means over draws):
+                 arm  n_added    mae    rho  lift_r2  d_lift_vs_baseline  d_lift_lo  d_lift_hi  d_lift_p  lift_share_noise_below  lift_noise_p
+            baseline        0 3.4718 0.1713   0.4272              0.0000        NaN        NaN       NaN                     NaN           NaN
+            red-zone       27 3.4765 0.1491   0.3697             -0.0574    -0.0853    -0.0294    0.0000                    0.26        0.7451
+              drives       21 3.4823 0.1675   0.4178             -0.0093    -0.0420     0.0236    0.5732                    0.96        0.0588
+         leg/stadium       13 3.4730 0.1592   0.3955             -0.0316    -0.0728     0.0095    0.1368                    0.16        0.8431
+           all three       61 3.4853 0.1415   0.3469             -0.0803    -0.1323    -0.0266    0.0022                    0.72        0.2941
+           noise x13       13 3.4773 0.1627   0.4055             -0.0216        NaN        NaN       NaN                     NaN           NaN
+           noise x21       21 3.4814 0.1569   0.3902             -0.0370        NaN        NaN       NaN                     NaN           NaN
+           noise x27       27 3.4860 0.1520   0.3791             -0.0480        NaN        NaN       NaN                     NaN           NaN
+           noise x61       61 3.5028 0.1350   0.3375             -0.0896        NaN        NaN       NaN                     NaN           NaN
+   shuffled red-zone       27 3.4794 0.1588   0.3948             -0.0323        NaN        NaN       NaN                     NaN           NaN
+     shuffled drives       21 3.4772 0.1616   0.4025             -0.0247        NaN        NaN       NaN                     NaN           NaN
+shuffled leg/stadium       13 3.4768 0.1616   0.4031             -0.0241        NaN        NaN       NaN                     NaN           NaN
+  shuffled all three       61 3.4925 0.1450   0.3623             -0.0648        NaN        NaN       NaN                     NaN           NaN
+
+Against the matched noise control (share of draws the family beats):
+  red-zone     lift 0.26 (p 0.745)  MAE 0.98 (p 0.039)  rho 0.34 (p 0.667)
+  drives       lift 0.96 (p 0.059)  MAE 0.38 (p 0.627)  rho 0.94 (p 0.078)
+  leg/stadium  lift 0.16 (p 0.843)  MAE 0.88 (p 0.137)  rho 0.20 (p 0.804)
+  all three    lift 0.72 (p 0.294)  MAE 1.00 (p 0.020)  rho 0.80 (p 0.216)
+
+Against its own rows shuffled within season (share of draws the family beats):
+  red-zone     lift 0.00 (p 1.000)  MAE 0.80 (p 0.216)  rho 0.00 (p 1.000)
+  drives       lift 0.92 (p 0.098)  MAE 0.12 (p 0.882)  rho 0.92 (p 0.098)
+  leg/stadium  lift 0.26 (p 0.745)  MAE 0.70 (p 0.314)  rho 0.30 (p 0.706)
+  all three    lift 0.28 (p 0.725)  MAE 0.66 (p 0.353)  rho 0.36 (p 0.647)
+
+wrote reports/feature_family_ridge_retest.csv

@@ -1,0 +1,63 @@
+regular-season FG attempts 2015-2026, kick_distance - yardline_100: +18 89.7%, +19 8.8%, +17 1.5%
+
+=== distance = yardline_100 + 17: long yardline 33-43, short yardline 20-32 ===
+FG attempt rate on fourth down, by band (regular season):
+  season weeks    long    n   short    n
+    2015    17   0.274  274   0.908  304
+    2016    17   0.266  256   0.868  302
+    2017    17   0.243  268   0.888  329
+    2018    17   0.276  239   0.877  284
+    2019    17   0.254  268   0.845  323
+    2020    17   0.296  284   0.848  309
+    2021    18   0.316  291   0.781  310
+    2022    18   0.387  302   0.824  335
+    2023    18   0.369  325   0.801  311
+    2024    18   0.447  349   0.793  333
+    2025    18   0.440  309   0.793  338
+    2026     7   0.477  128   0.793  150
+2025: median 9 long-band chances per team, lowest NE 0/7, highest DAL 11/12
+  observed across teams   var 0.05244  sd 0.229
+  binomial sampling noise var 0.02516  sd 0.159
+  true team difference    var 0.02728  sd 0.165
+  share real 52.0%  (teams resampled, 95% [11.4%, 69.7%])
+  shrinkage constant k 8.0 from 2025 alone, 15.3 pooled 2015-2025; a team with 9 chances keeps 53% of its own rate (37% with the pooled k)
+  11 complete seasons: share real median 24.5% (range -22.7% to 63.8%), 2 with true variance at or below zero
+  year-over-year r of raw team rates, 10 pairs of complete seasons: long +0.20 (1 negative), short +0.02, fourth_down go_rate +0.27
+
+=== distance = yardline_100 + 18: long yardline 32-42, short yardline 19-31 ===
+FG attempt rate on fourth down, by band (regular season):
+  season weeks    long    n   short    n
+    2015    17   0.343  265   0.915  305
+    2016    17   0.336  247   0.871  302
+    2017    17   0.322  270   0.891  320
+    2018    17   0.361  233   0.873  292
+    2019    17   0.321  262   0.854  328
+    2020    17   0.356  275   0.854  316
+    2021    18   0.384  284   0.797  311
+    2022    18   0.439  312   0.834  338
+    2023    18   0.433  321   0.813  310
+    2024    18   0.513  347   0.793  324
+    2025    18   0.510  310   0.791  330
+    2026     7   0.574  129   0.780  141
+2025: median 9 long-band chances per team, lowest NE 0/5, highest DAL 11/12
+  observed across teams   var 0.05297  sd 0.230
+  binomial sampling noise var 0.02546  sd 0.160
+  true team difference    var 0.02751  sd 0.166
+  share real 51.9%  (teams resampled, 95% [13.8%, 68.4%])
+  shrinkage constant k 8.1 from 2025 alone, 14.8 pooled 2015-2025; a team with 9 chances keeps 53% of its own rate (38% with the pooled k)
+  11 complete seasons: share real median 34.7% (range -27.3% to 56.2%), 1 with true variance at or below zero
+  year-over-year r of raw team rates, 10 pairs of complete seasons: long +0.21 (2 negative), short +0.04, fourth_down go_rate +0.27
+
+Decision lift, R=2, test seasons 2018-2025 (141 weeks), ridge alpha 100 in every arm:
+  ridge16                                       lift 0.4272  rho 0.1713
+  ridge16 + shrunk long rate, yardline 33-43    lift 0.4295  rho 0.1727  (primary)
+                                                diff +0.0023 [-0.0074, +0.0121] p 0.64, rho +0.0014; seasons won 4/8, t p 0.69; coef > 0 in 7/8 folds
+  ridge16 + raw long rate, yardline 33-43       lift 0.4303  rho 0.1729
+                                                diff +0.0031 [-0.0028, +0.0092] p 0.31, rho +0.0016; seasons won 4/8, t p 0.32; coef > 0 in 5/8 folds
+  ridge16 + shrunk long rate, yardline 32-42    lift 0.4275  rho 0.1720
+                                                diff +0.0003 [-0.0084, +0.0091] p 0.94, rho +0.0007; seasons won 4/8, t p 0.95; coef > 0 in 6/8 folds
+  ridge16 + raw long rate, yardline 32-42       lift 0.4278  rho 0.1708
+                                                diff +0.0006 [-0.0060, +0.0071] p 0.87, rho -0.0004; seasons won 4/8, t p 0.87; coef > 0 in 1/8 folds
+  reports/backtest_summary.csv ridge lift_r2 0.4272, base arm here 0.4272: the same model on the same split
+
+wrote reports/fifty_plus_rates.csv, fifty_plus_variance.csv, fifty_plus_lift.csv

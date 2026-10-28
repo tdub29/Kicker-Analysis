@@ -1,5 +1,27 @@
-nfl_data_py>=0.3.2
+# Runtime dependencies of the current pipeline: every third-party import in
+# src/kicker_analysis/, scripts/ and experiments/. pyproject.toml reads this
+# file, so it is the one list to edit. nfl_data_py and pyyaml are gone: only
+# legacy/ used them.
+#
+# Floors are the oldest versions checked: Python 3.11 with numpy 1.25.2,
+# pandas 2.0.3, pyarrow 12.0.1, scipy 1.10.1, scikit-learn 1.3.2,
+# lightgbm 4.0.0 and matplotlib 3.7.5 (and pytest 7.4.4 for tests/). With those,
+# every test in tests/ passes, figures.py's self-check and chart rendering
+# included, and `python scripts/run_pipeline.py --bakeoff` matched the same run
+# on Python 3.13 with numpy 2.5, pandas 3.1, scikit-learn 1.9, lightgbm 4.7 and
+# matplotlib 3.11 to within 2e-10 in every CSV and data table it writes, with
+# one exception: in the bake-off, scikit-learn 1.3 tuned the linear pairwise
+# ranker, one of the challengers, to C=0.1 instead of C=1 in the 2025 fold,
+# which moved its pooled lift from 0.4280 to 0.4284. No verdict and no other
+# model changed. The charts show the same numbers, though the PNG bytes differ
+# between matplotlib versions. The experiment scripts under experiments/ were
+# not run at the floors.
 numpy>=1.25
 pandas>=2.0
-pyyaml>=6.0
+# The parquet engine behind pandas.read_parquet and DataFrame.to_parquet.
+pyarrow>=12.0
+scipy>=1.10
 scikit-learn>=1.3
+lightgbm>=4.0
+# figures.py
+matplotlib>=3.7

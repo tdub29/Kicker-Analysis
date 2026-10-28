@@ -1,0 +1,3 @@
+# Everything needed to run the pipeline, plus the test runner for tests/.
+-r requirements.txt
+pytest>=7.4

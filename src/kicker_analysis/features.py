@@ -10,8 +10,11 @@ well before then: lagged results, coach history, the building and its climate.
 
 Version one passed a leakage self-check and still could not be deployed. The
 self-check proved the rolling windows were lagged correctly, which they were, and
-that is not the same question as whether a column EXISTS before kickoff. Three
-independent audits found the difference, and the numbers below are theirs.
+that is not the same question as whether a column EXISTS before kickoff. Asking
+that second question of every column produced the changes below. Their figures
+were measured when each change was made, on the data as it stood then (the
+5,229 modelling rows predate the restored 2021 season), and no script in the
+repo regenerates them; they record why the change was made.
 
 What changed and why:
 
@@ -163,8 +166,8 @@ def roof_flags(df: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.DataFr
         venue = (d.stadium_id if "stadium_id" in d.columns else
                  d.game_id.map(src.drop_duplicates("game_id").set_index("game_id").stadium_id))
         kind = kind.fillna(venue.map(stadium_types(src)))
-    # ponytail: a venue with no roof history is scored open-air; name it in
-    # STADIUM_TYPE_KNOWN when the schedule adds one.
+    # A venue with no roof history is scored open-air. When the schedule adds
+    # one with a roof, name it in STADIUM_TYPE_KNOWN.
     kind = kind.fillna("outdoors")
     d["is_indoor_certain"] = kind.eq("dome").astype(int)
     d["is_retractable"] = kind.eq("retractable").astype(int)
@@ -242,7 +245,8 @@ def build_features(df: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.Da
         sr["prev_fourth_n"] = sr.n
         # Reindex onto a dense team x season grid before shifting, so a missing
         # season shifts to NaN instead of quietly handing over the year before it.
-        # With 2021 absent upstream, a row shift gave 2022 teams their 2020 rate.
+        # While 2021 was missing from the kicker table (since restored by
+        # build_dataset.py), a row shift gave 2022 teams their 2020 rate.
         grid = pd.MultiIndex.from_product(
             [sorted(sr.team.unique()), range(int(sr.season.min()), int(sr.season.max()) + 1)],
             names=["team", "season"])
@@ -304,7 +308,7 @@ def self_check() -> int:
     assert a.k_fantasy_points_l4.iloc[4] == 25.0
 
     cols = feature_columns(f)
-    # The three serve-time columns must be unreachable, not merely unused.
+    # The serve-time columns must be unreachable, not merely unused.
     for banned in ("temp", "wind", "is_dome", "t_games_prior", "opp_d_games_prior"):
         assert banned not in cols, banned
     assert "fantasy_points" not in cols

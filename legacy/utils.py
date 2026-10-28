@@ -1,3 +1,12 @@
+"""Helpers for the retired pipeline. Moved here from src/kicker_analysis/.
+
+Only `legacy/feature_engineering.py` and `legacy/pipeline.py` import this. The
+team-code rules map modern codes back to each era's (LAC to SD before 2016),
+which is the opposite of what the current build does: build_dataset.py
+collapses every relocated franchise to its current code (`RELOCATIONS`),
+because the two nflverse sources disagree about which era's code to use and
+the mismatch silently dropped 911 kicker-games.
+"""
 from __future__ import annotations
 
 from pathlib import Path

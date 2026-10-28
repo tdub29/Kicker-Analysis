@@ -1,13 +1,20 @@
 """Season-forward evaluation, rebuilt around the decision instead of the residual.
 
-Superseded for the headline numbers by backtest.py, which is what the shipped numbers come from. This file
-is kept because it carries two things backtest.py does not: `prob_best`, the
-bootstrap probability that a given model wins on a redraw, and `bootstrap_compare`
-over an arbitrary statistic. Both are worth having when a new candidate model
-appears. Read the numbers from backtest.py.
+Superseded for the headline numbers by backtest.py, which is what the shipped
+numbers come from. This file is kept because it carries two things backtest.py
+does not: `prob_best`, the bootstrap probability that a given model wins on a
+redraw, and `bootstrap_compare` over an arbitrary statistic. Both are worth having
+when a new candidate model appears. Read the numbers from backtest.py. This
+file's own run() is not comparable to backtest.py in any case: it scores every
+numeric column feature_columns() admits rather than the 16 named in
+model.FEATURES, its decision lift is simulated rather than exact, and load() here
+builds features without the schedule, so the stadium-climate columns are never
+built.
 
-The first version of this harness sorted a table by MAE and read a winner off the
-top. An independent review showed that was measuring almost nothing:
+The first version of this harness (legacy/evaluate_v1.py) sorted a table by MAE
+and read a winner off the top. Checked against constant baselines and on the
+decision itself, that table was measuring almost nothing (figures for the v1
+models and their 73-column feature set, measured when they were retired):
 
   * Predicting the training MEDIAN (8.0 points) every single week scores a pooled
     MAE of 3.4946. The best real model beat that by 0.0027, which is one sixth of
@@ -37,16 +44,17 @@ So this harness reports, in priority order:
   3. MAE and RMSE     kept as a calibration sanity check, demoted, and never the
                       column anything is sorted by.
 
-Every comparison carries a week-block bootstrap, because 7 folds cannot resolve
-anything: the smallest two-sided Wilcoxon p attainable at n=7 is 0.0156, so a
+Every comparison carries a week-block bootstrap, because 8 folds can resolve very
+little: the smallest two-sided Wilcoxon p attainable at n=8 is 0.0078 (0.0156 at
+the 7 folds this harness had while 2021 was missing from the data), so a
 fold-level test is underpowered by construction. Model choice is reported as a
 bootstrap probability of being best, not as a rank, because with six candidates
 the expected gain from picking the best of six equally good models is roughly
 0.021 MAE, which was two to eight times the winner's actual margin.
 
 Usage:
-    python src/kicker_analysis/evaluate2.py
-    python src/kicker_analysis/evaluate2.py --self-check
+    python src/kicker_analysis/evaluate.py     # writes reports/decision_metrics.csv, predictions.parquet
+    python src/kicker_analysis/evaluate.py --self-check
 """
 from __future__ import annotations
 
@@ -57,7 +65,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr, wilcoxon
+from scipy.stats import spearmanr
 from sklearn.metrics import mean_absolute_error
 
 warnings.filterwarnings("ignore")
@@ -179,6 +187,14 @@ def bootstrap_compare(preds: dict, blocks: list[np.ndarray], stat, a: str, b: st
         pick = rng.integers(0, nb, nb)
         rows = np.concatenate([blocks[j] for j in pick])
         diffs[i] = stat(preds[a].loc[rows]) - stat(preds[b].loc[rows])
+    # A statistic that is undefined for one side has no p-value either. A
+    # constant predictor has no within-week rank correlation, so every diff is
+    # NaN, and NaN compares False both ways: left alone, the line below would
+    # report p = 0, the strongest possible result, for a comparison that never
+    # happened.
+    if not (np.isfinite(obs) and np.isfinite(diffs).all()):
+        return {"diff": float(obs), "lo": float("nan"), "hi": float("nan"),
+                "p": float("nan")}
     lo, hi = np.percentile(diffs, [2.5, 97.5])
     # Two-sided p by the usual sign-reversal convention.
     p = 2 * min((diffs <= 0).mean(), (diffs >= 0).mean())
@@ -196,13 +212,22 @@ def prob_best(preds: dict, blocks: list[np.ndarray], stat, higher_is_better: boo
     names = list(preds)
     wins = {k: 0 for k in names}
     nb = len(blocks)
+    scored = 0
     for _ in range(n):
         pick = rng.integers(0, nb, nb)
         rows = np.concatenate([blocks[j] for j in pick])
         vals = {k: stat(preds[k].loc[rows]) for k in names}
+        # A model whose statistic is undefined on this draw cannot win it.
+        # max() and min() keep a NaN they meet first, because nothing compares
+        # greater or smaller than NaN, so without this a constant predictor
+        # listed first "wins" every draw on within-week rho.
+        vals = {k: v for k, v in vals.items() if np.isfinite(v)}
+        if not vals:
+            continue
         best = (max if higher_is_better else min)(vals, key=vals.get)
         wins[best] += 1
-    return {k: v / n for k, v in wins.items()}
+        scored += 1
+    return {k: (v / scored if scored else float("nan")) for k, v in wins.items()}
 
 
 # --------------------------------------------------------------------------
@@ -314,13 +339,16 @@ def run() -> dict:
           f"everything above is a slice of it.")
 
     best = table.model.iloc[0]
-    print(f"\nBootstrap over {len(blocks)} week blocks, {BOOTSTRAP} resamples.")
+    # Fewer resamples than BOOTSTRAP: each one re-simulates the lift for every
+    # week. The printed count is the one actually used.
+    n_cmp = 600
+    print(f"\nBootstrap over {len(blocks)} week blocks, {n_cmp} resamples per comparison.")
     for other in ["constant_median", "kicker_career", "implied_total_only"]:
         if other == best:
             continue
         for label, stat in (("within-week rho", within_week_rho),
                             ("R=2 lift", lambda d: decision_lift(d, 2, n_draws=120)["lift"])):
-            c = bootstrap_compare(preds, blocks, stat, best, other, n=600)
+            c = bootstrap_compare(preds, blocks, stat, best, other, n=n_cmp)
             print(f"  {best} vs {other:20} {label:16} "
                   f"{c['diff']:+.4f}  95% CI [{c['lo']:+.4f}, {c['hi']:+.4f}]  p={c['p']:.4f}")
 
@@ -333,7 +361,7 @@ def run() -> dict:
     table.to_csv(REPORTS / "decision_metrics.csv", index=False)
     pd.concat([d.assign(model=k) for k, d in preds.items()], ignore_index=True).to_parquet(
         REPORTS / "predictions.parquet", index=False)
-    print(f"\nwrote reports/decision_metrics.csv and reports/predictions.parquet")
+    print("\nwrote reports/decision_metrics.csv and reports/predictions.parquet")
     return {"table": table, "preds": preds, "prob_best": pb}
 
 
@@ -390,6 +418,15 @@ def self_check() -> int:
     assert abs(pooled - 2.0) < 1e-12, pooled
     assert abs(naive - 1.4142135) < 1e-6
     assert pooled > naive
+
+    # A constant predictor has no within-week rho. Compared on that statistic it
+    # must come back as no result, not as p = 0, and it must never be "best".
+    preds = {"constant": good.assign(p=7.0), "model": good}
+    blocks = week_blocks(good)
+    c = bootstrap_compare(preds, blocks, within_week_rho, "model", "constant", n=20)
+    assert np.isnan(c["p"]) and np.isnan(c["lo"]), c
+    pb = prob_best(preds, blocks, within_week_rho, higher_is_better=True, n=20)
+    assert pb == {"constant": 0.0, "model": 1.0}, pb
     print("evaluate self-check ok")
     return 0
 
