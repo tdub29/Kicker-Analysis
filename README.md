@@ -9,14 +9,6 @@ It forecasts weekly NFL kicker fantasy points, scores every method on the
 start/sit decision a manager actually makes, publishes a board each week, and
 keeps the results that did not work next to the ones that did.
 
-| | |
-|---|---|
-| **data** | 14,638 kicker-games from nflverse, 1999 to 2026 week 7; the model uses the 5,945 regular-season games from 2015 on |
-| **target** | each week's actual fantasy points |
-| **ranking** | a ridge regression on 16 named features, all known before kickoff |
-| **distribution** | two LightGBM count models for field-goal and extra-point attempts, simulated through the scoring rule |
-| **output** | a weekly board in `reports/`, with a floor, a ceiling and `P(15+)` for every starter |
-
 - **Start the kicker whose offence Vegas expects to score most.** That one
   number captures most of the value any method here finds.
 - **The model adds a small edge on top of it.** A ridge regression on 16
@@ -30,6 +22,26 @@ keeps the results that did not work next to the ones that did.
   −0.003 to +0.009). Extra-point attempts, which are touchdowns, are the
   predictable part (R² +0.126). A kicker forecast is mostly a touchdown forecast,
   which is why the betting line is hard to beat.
+
+## Forecast inputs and results
+
+![Kicker forecast inputs, ranking and count models, and reported backtest results](docs/images/fantasy-football-04.webp)
+
+Model inputs and the backtest headline as of the 2026-09-29 run. The graphic's
+p = 0.001 is that run's week-block bootstrap; on the current build the same test
+gives p = 0.004, and counting each season once gives p = 0.095. Its 8.5% / 8.4%
+is the pooled chance of a 15-point week, which matches on average but separates
+kickers only weakly. Current figures and their uncertainty are below.
+
+## What it does
+
+| | |
+|---|---|
+| **data** | 14,638 kicker-games from nflverse, 1999 to 2026 week 7; the model uses the 5,945 regular-season games from 2015 on |
+| **target** | each week's actual fantasy points |
+| **ranking** | a ridge regression on 16 named features, all known before kickoff |
+| **distribution** | two LightGBM count models for field-goal and extra-point attempts, simulated through the scoring rule |
+| **output** | a weekly board in `reports/`, with a floor, a ceiling and `P(15+)` for every starter |
 
 ## Does it work
 
@@ -84,9 +96,10 @@ table.
 
 `score_boards.py` scores each published 2026 board against what happened once
 its games are final. A week counts as a forecast only if its board was committed
-before kickoff. Weeks 3 and 4 are the boards as first committed; a later commit
-had regenerated them after their games, and that rewrite is reverted. Weeks 5
-and 6 were first committed after their games, so they are shown and not counted.
+before kickoff. Weeks 3, 4 and 7 are the boards as first committed: each was
+later regenerated after its games, and those reruns are kept apart in
+`reports/reruns/` so they cannot stand in for the forecast. Weeks 5 and 6 were
+first committed after their games, so they are shown and not counted.
 
 | week | kickers scored | board lift | implied-total lift | board minus implied | counted |
 |---|---|---|---|---|---|
