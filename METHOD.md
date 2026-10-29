@@ -247,7 +247,8 @@ steadily: the top tenth was predicted at 0.130 and came in at 0.100. At 8 and 10
 points the model over-predicts by about two percentage points, and those
 intervals exclude zero.
 
-The 15+ match is also partly errors cancelling in the simulator: counts drawn
+The 15+ match may also be partly errors offsetting in the simulator (`model.py`
+says they can offset; no committed code measures it): counts drawn
 too narrow, field goals and extra points drawn as if independent, and makes
 worth slightly too much. Matching the pooled rate is not hard in any case: a
 Tweedie GLM on total points also lands near it (0.0867 against 0.0841).
@@ -415,7 +416,9 @@ shipped ridge, on the exact lift, with the same folds as the backtest
 | leg strength and stadium | +13 | 3.4730 | 0.159 | 0.396 | -0.032 [-0.073, +0.009], 0.14 |
 | all three | +61 | 3.4853 | 0.141 | 0.347 | -0.080 [-0.132, -0.027], 0.0022 |
 
-Every family makes the ridge worse on every metric. Red-zone lowers the lift in
+Every family moves the ridge the wrong way on all three metrics, but only
+red-zone and all three lower the lift by a margin the week-block bootstrap
+separates from zero; the drive-level and leg-strength intervals include zero. Red-zone lowers the lift in
 all 8 test seasons, drive-level in 6 of 8.
 
 Two controls, 50 draws each: the 16 features plus the same number of
@@ -478,7 +481,7 @@ Long-range willingness sat between 0.243 and 0.296 through 2020, then climbed
 12 points in four years, from 0.316 in 2021 to 0.440 in 2025. The short rate
 fell from 0.908 in 2015 to 0.781 in 2021 and has been flat since. So a single
 bucket was averaging two different trends: from 2015 to 2021 they moved in
-opposite directions, and since 2021 the long rate has kept rising while the
+opposite directions, and since 2021 the long rate has trended up, with small dips in 2023 and 2025, while the
 short rate sat still.
 
 **The team spread looks large, and much of it is not real.** In 2025 New
