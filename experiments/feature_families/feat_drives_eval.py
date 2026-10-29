@@ -12,9 +12,10 @@ no noise control. The ridge re-test of the same family, with one, is
 ridge_retest.py in this folder.
 
 The logged run (feat_drives_eval.out, this script's stdout) has 6 folds, not 7:
-2021 was then missing from kicker_games.parquet. build_dataset.py now fills
-2021 from play-by-play, so a rerun has 7 folds and will not reproduce the log
-exactly. Nothing is written; the printout is the result.
+at the time this ran, 2021 was missing from kicker_games.parquet.
+build_dataset.py now fills 2021 from play-by-play, so a rerun has 7 folds and
+will not reproduce the log exactly. Nothing is written; the printout is the
+result.
 
     python experiments/feature_families/feat_drives_eval.py
 """

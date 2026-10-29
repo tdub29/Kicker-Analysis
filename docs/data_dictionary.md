@@ -99,11 +99,11 @@ a season is missing or has rows for fewer than 70% of its played team-games.
 One row per team-game with at least one fourth down that counts as a decision:
 at or inside the opponent's 38-yard line, win probability between 5% and 95%,
 more than two minutes left in the half, and exactly one of a field-goal
-attempt, a punt, or a run or pass. Team-games with none have no row. The code
-calls the 38 a 55-yard attempt (38 + 7 + 10). In the play-by-play,
-`kick_distance` is `yardline_100 + 18` for 89.7% of regular-season field-goal
-attempts from 2015 to 2026 (`experiments/fifty_plus/fifty_plus.log`), so a
-kick from the 38 is typically a 56-yarder.
+attempt, a punt, or a run or pass. Team-games with none have no row. In the
+play-by-play, `kick_distance` is `yardline_100 + 18` for 89.7% of
+regular-season field-goal attempts from 2015 to 2026
+(`experiments/fifty_plus/fifty_plus.log`), so a kick from the 38 is typically a
+56-yarder, as `fourth_down.py` says.
 
 | column | meaning |
 |---|---|
@@ -273,8 +273,11 @@ existed before kickoff. A board's bytes get two clocks: `committed`, the
 earliest commit holding exactly those bytes (git dates, which the committer's
 machine sets), and `public`, the earliest push to GitHub whose head commit holds
 them (GitHub's activity log). A game counts as a forecast on a clock only if
-that clock is strictly before its kickoff. Weeks 3 and 4 are on disk as their
-first-committed, pre-kickoff versions.
+that clock is strictly before its kickoff. Weeks 3, 4 and 7 are on disk as
+their first-committed, pre-kickoff versions. The versions regenerated after
+their games are kept in `reports/reruns/`
+(`week_<season>_<week>_kickers_rerun_<date>.csv`, the same columns as a board),
+which `score_boards.py` does not read.
 
 **`live_2026_scorecard.csv`**, one row per `subset` and `week`, plus a pooled row
 per subset:

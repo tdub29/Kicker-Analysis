@@ -14,11 +14,11 @@ mechanism than "points scored":
   on the opponent's 25 is a bad offence and three points for him. Team points
   therefore moves the kicker's expected volume in both directions at once and
   the net is close to flat, which is why `t_team_score_*` is a weak feature.
-  Splitting the two apart recovers the signal: the numerator counts only the
-  drives that actually generate a kick opportunity, and the denominator is the
-  offence's total traffic. 2019 Tampa Bay and 2019 Baltimore both averaged about
-  the same drives per game; Tampa stalled in range on 30% of drives and Baltimore
-  on 21%, because Baltimore finished. Same "good offence", very different kicker.
+  Splitting the two apart is the idea: the numerator counts only the drives
+  that actually generate a kick opportunity, and the denominator is the
+  offence's total traffic. Two offences that both get into range often can
+  hand their kickers very different weeks, depending on whether those drives
+  finish or stall. Same "good offence", very different kicker.
 
 The seven per-team-game quantities, and what each is for:
 
@@ -98,8 +98,10 @@ FIRST_SEASON = 2015
 # "Field-goal range" for a DRIVE is looser than the fourth-down module's 38-yard
 # line, deliberately. There the question was whether a specific kick was on the
 # menu; here it is whether the drive got close enough that stalling produces an
-# attempt at all. The opponent 40 is a 57-yard try, which is the outer edge of
-# where a coach will send the unit out, and it is the conventional line.
+# attempt at all. The opponent 40 is typically a 58-yard try (kick_distance is
+# yardline_100 plus 18 for most nflverse attempts; see fourth_down.py), which is
+# the outer edge of where a coach will send the unit out, and it is the
+# conventional line.
 FG_RANGE_YARDLINE = 40
 
 RELOCATIONS = {"STL": "LA", "SD": "LAC", "OAK": "LV"}

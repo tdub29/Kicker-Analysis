@@ -21,10 +21,11 @@ published: games.csv carries closing lines, and Sleeper reports today's rosters,
 which is why the roster filter is applied only to the upcoming slate.
 
 The published board is a record, so it is never overwritten by default. If
-reports/week_<season>_<week>_kickers.csv exists the run stops before training and
-says so (a configured site payload is then written from that existing board);
-`--force` replaces it and prints the path it replaced, and `--out` writes a
-rebuild somewhere else without touching the record.
+reports/week_<season>_<week>_kickers.csv (or the `--out` path, when given)
+exists, the run stops before training, says so and exits 0 (a configured site
+payload is then written from that existing board); `--force` replaces it and
+prints the path it replaced, and `--out` writes a rebuild somewhere else without
+touching the record.
 
 Two orderings are written, and only the first is the recommendation:
 
@@ -49,7 +50,9 @@ is dropped; that list is cached in data/external/ and refreshed at most daily.
 The author's Fantasy Football site reads a JavaScript payload of the board. It is
 written only where `--site-out` or the KICKER_SITE_JS environment variable says,
 and otherwise skipped with one printed line, so a clone on any machine runs the
-same code without needing that site.
+same code without needing that site. KICKER_SITE_JS is used only for the
+upcoming week; a rebuilt earlier week goes to the site only when `--site-out`
+names a path.
 
     python src/kicker_analysis/predict_week.py
     python src/kicker_analysis/predict_week.py --week 3 --out /tmp/week3.csv
@@ -805,10 +808,12 @@ if __name__ == "__main__":
                          "default refuses)")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="write the board here instead of "
-                         "reports/week_<season>_<week>_kickers.csv")
+                         "reports/week_<season>_<week>_kickers.csv (an "
+                         "existing file there is kept unless --force)")
     ap.add_argument("--site-out", default=None,
-                    help=f"write the site payload here (default: ${SITE_ENV}; "
-                         f"neither set means no site payload)")
+                    help=f"write the site payload here (default: ${SITE_ENV}, "
+                         f"used for the upcoming week only; neither set means "
+                         f"no site payload)")
     ap.add_argument("--max-days-ahead", type=int, default=None,
                     help="build nothing if the upcoming slate starts more than this "
                          "many days from today (UTC); for scheduled runs")

@@ -34,12 +34,13 @@ So there are two models here, each used for the job it does better:
                        threshold with no threshold model trained. Pooled over
                        the 8 folds its P(y >= 15) averages 0.0839 against a
                        realised 0.0841, but it over-predicts 8+ and 10+ by
-                       about two percentage points (+0.021 and +0.018;
-                       backtest.py prints week-block intervals that exclude
-                       zero). Kicker by kicker it is weak: at 15 points its
-                       AUC is 0.55, its calibration slope 0.55, and its Brier
-                       skill over a constant at the training base rate +0.001
-                       (95% CI -0.004 to +0.006), no better than that constant
+                       about two percentage points (+0.0205 and +0.0177;
+                       backtest.py prints them with week-block intervals
+                       that exclude zero). Kicker by kicker it is weak: at
+                       15 points its AUC is 0.55, its calibration slope
+                       0.55, and its Brier skill over a constant at the
+                       training base rate +0.001 (95% CI -0.004 to +0.006),
+                       no better than that constant
                        (reports/calibration_summary.csv). Its docstring lists
                        where the draw is knowingly wrong.
 
@@ -147,9 +148,10 @@ class RidgeRanker:
     ranks ahead of the compound count model's expected points, the Vegas
     implied total alone and a kicker's career average
     (reports/backtest_summary.csv). Its margin over the line alone, +0.074
-    points a week, is clear when weeks are resampled (95% CI +0.024 to
-    +0.124) and not significant when each test season is one observation:
-    ahead in 6 of 8, t-test p = 0.095 (reports/season_level_tests.csv). In
+    points a week, is clear when weeks are resampled (week-block 95% CI
+    +0.023 to +0.124) and not significant when each test season is one
+    observation: ahead in 6 of 8, t-test p = 0.095
+    (reports/season_level_tests.csv). In
     the bake-off none of fourteen challengers could be told apart from it
     after Holm correction (reports/model_bakeoff_summary.csv,
     notes/model-selection-2026-09-29.md).

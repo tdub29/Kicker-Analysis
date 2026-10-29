@@ -1,4 +1,4 @@
-5,943 modelling rows, 4,211 test rows in 141 weeks, test seasons 2018-2025 (8 folds)
+5,945 modelling rows, 4,211 test rows in 141 weeks, test seasons 2018-2025 (8 folds)
 16 baseline features; families: red-zone +27, drives +21, leg/stadium +13, all three +61; 50 noise draws per width
 
   noise x13  lift 0.4055 (sd 0.0106, 0.3797 to 0.4363)  MAE 3.4773  rho 0.1627

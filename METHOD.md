@@ -2,8 +2,8 @@
 
 Written for someone who will check the claims. Every result here comes from a
 tracked CSV in `reports/` or from the printed output of the script that wrote
-it, all regenerated on one data build. The few exceptions are historical figures
-from code that has since been retired, and each is marked where it appears. The
+it, all regenerated on one data build. The exceptions are historical figures,
+measured on earlier code or data, and each is marked where it appears. The
 backtest is season-forward: for each test season the model trains only on
 seasons before it, so nothing from the future of the league is ever in the
 training set. It covers 2018 to 2025. 2026 is not a backtest fold; it is scored
@@ -30,7 +30,7 @@ section are listed at the bottom.
    26.4% in 2025), so there are fewer field goals for everyone. A team's own go
    rate is one of the smallest inputs to the board.
 5. **Do not pay for a projection that looks confident.** On the 2026 boards the
-   ridge's expected points span 2.6 to 3.2 points from the top kicker to the
+   ridge's expected points span 2.1 to 3.2 points from the top kicker to the
    bottom one in a week. A single kicker's week has a standard deviation of 4.26
    points (1999 to 2026). Even an oracle that knew the scores in advance gains only 2.458
    points a week on the start/sit decision.
@@ -50,10 +50,12 @@ season-forward folds, the models still failed, and failed in an instructive way:
 | model | MAE |
 |---|---|
 | Ridge, 73 features | 3.4919 |
+| the original model's shape: least squares on three of the kicker's rolling volume and accuracy terms | 3.4978 |
 | predict the league mean every week | 3.5008 |
 | kicker's own career average | 3.5676 |
 | LightGBM, 73 features | 3.5868 |
 | LightGBM Tweedie, 73 features | 3.5886 |
+| kicker's average over his last 8 games | 3.6729 |
 
 This table is the historical record of the retired harness,
 `legacy/evaluate_v1.py`, and its output is in `legacy/reports/model_summary.csv`.
@@ -104,7 +106,8 @@ interval:
 
 **Weekly field goal attempts showed close to no out-of-sample skill.** The count
 stage cannot be told apart from the training mean, and the ridge is barely above
-it. The half of the target that carries the variance showed no measurable skill;
+it. The half of the target that carries the variance showed almost no skill (the
+ridge's +0.007 is measurable but tiny);
 the half with real skill carries about a tenth of it.
 
 This is a retraction. An earlier version said field goal attempts had negative
@@ -177,7 +180,7 @@ signed-rank test and a count of seasons won.
 
 | comparison | difference, pts/wk | week blocks: 95% CI, p | seasons: t 95% CI, p | Wilcoxon p | seasons won |
 |---|---|---|---|---|---|
-| ridge vs implied total alone | **+0.074** | [+0.024, +0.124], 0.0036 | **[-0.016, +0.162], 0.095** | 0.11 | 6 of 8 |
+| ridge vs implied total alone | **+0.074** | [+0.023, +0.124], 0.0036 | **[-0.016, +0.162], 0.095** | 0.11 | 6 of 8 |
 | ridge vs kicker career average | +0.247 | [+0.156, +0.335], < 0.0001 | [+0.132, +0.362], 0.0014 | 0.0078 | 8 of 8 |
 | ridge vs count model expected points | +0.065 | [+0.017, +0.112], 0.0070 | [+0.019, +0.109], 0.012 | 0.016 | 7 of 8 |
 | count model vs implied total alone | +0.009 | [-0.034, +0.054], 0.66 | [-0.051, +0.068], 0.75 | 0.74 | 5 of 8 |
@@ -185,7 +188,7 @@ signed-rank test and a count of seasons won.
 The season-level means differ slightly from the pooled differences (+0.073
 against +0.074 for the first row) because seasons have 17 or 18 weeks.
 
-**Read the first row honestly.** Inside these 141 weeks the ridge is ahead of
+**What the first row does and does not show.** Inside these 141 weeks the ridge is ahead of
 the betting line by a margin the week-block bootstrap separates from zero. But
 the weeks of a season share that season's league, and the question a reader
 cares about is whether it will be ahead next season. With seasons as the unit
@@ -199,8 +202,8 @@ bootstrap over seasons (today [+0.002, +0.137], p = 0.045). With 8 clusters
 that method under-covers, and it is not the test to quote.
 
 The count model on the same features ties the line, and the ridge beats it in 7
-of 8 seasons. The model clearly earns its keep against what people actually do
-instead, such as starting the kicker with the best career: +0.247 a week, ahead
+of 8 seasons. The model clearly earns its keep against a simple rule a manager
+might use instead, starting the kicker with the best career: +0.247 a week, ahead
 in all 8 seasons. Against the market it may earn a little. If you only remember
 one thing from this document, remember the implied total.
 
@@ -212,7 +215,8 @@ That split was decided after the first bake-off run. In commit 3c51cf7 all 18
 comparisons were one Holm family, and ridge versus the line came out at raw
 p = 0.0054, Holm p = 0.081: not significant at 0.05. Later the same day,
 commit f04d00e split the family into the 14 challengers and the 2 baseline
-claims. The argument for the split, that two claims made before the bake-off
+claims, and left the 2 descriptive rows (the count model's expected points and
+the constant) unadjusted. The argument for the split, that two claims made before the bake-off
 should not pay for 14 questions asked after it, is defensible. It was made
 after seeing the result, so the two-family Holm p is a post hoc choice. On
 today's numbers one family of 18 puts the line comparison third and gives it
@@ -267,7 +271,7 @@ is in the outputs. Ordering by the probability adds nothing measurable on top of
 ordering by the mean.
 
 The board still carries both orderings (`rank_points`, the recommendation, and
-`rank_ceiling`), because the probability is an honest way to express a swing.
+`rank_ceiling`), because the probability is a direct way to express a swing.
 But the claim that you need the ceiling board to catch big weeks is not
 supported by this backtest, and it is retracted.
 
@@ -329,14 +333,15 @@ file, zero carry a temperature or wind speed, while rest, division game, surface
 and home field carry all 255. Observed weather ranked 3rd and 7th by importance.
 Training on it and serving without it cost +0.092 MAE. Dropping it entirely
 moved MAE by only 0.002. What replaces it is *stadium climate*: the venue's
-typical wind and temperature in that month from prior seasons, which is a fact
+typical wind in that month from prior seasons, zero indoors, which is a fact
 about the building and is knowable whenever you like.
 
 **The betting line is a closing line.** The implied total, the total line and
 closeness come from nflverse `spread_line` and `total_line`, which are the numbers
 at kickoff. So the backtest measures a board built from the closing number, and
 the board is valid for a lineup set close to kickoff. Read on Tuesday it uses an
-earlier line and should expect a little less than the tables above.
+earlier line and should expect less than the tables above, by an amount I have
+not measured.
 
 **Retractable roofs are a game-day decision.** The values `closed` and `open`
 never appear on an unplayed game. That was 15.1% of modelling rows carrying a
@@ -377,8 +382,8 @@ build the lowest is 91.1%.
 
 ## Two checks a skeptic would ask for, run
 
-**Was the hyperparameter borrowed from the test set?** Yes, and it does not
-matter. `alpha = 100` came from a sweep I read off the same seasons I then
+**Was the hyperparameter borrowed from the test set?** Yes, and choosing it
+properly changes almost nothing. `alpha = 100` came from a sweep I read off the same seasons I then
 reported, which is exactly the selection-on-test problem that makes a number
 quietly optimistic. Re-run with an inner loop that picks alpha using only
 seasons before the test year (it chose 10,000, 1,000, 300, 300, 300, 300, 300
@@ -525,16 +530,21 @@ the games (`score_boards.py`, `reports/live_2026_scorecard.csv`). A game counts
 only if the board's exact bytes were committed before its kickoff, and the
 scorecard also records when each commit first reached GitHub.
 
-- Weeks 2, 3, 4 and 7 were committed before kickoff. Weeks 3 and 4 are the
-  boards as first committed (eb44e17, d964182). A later commit, 24a3c60 on
-  2026-10-20, had rewritten them after their games, and that rewrite is
-  reverted.
+- Weeks 2, 3, 4 and 7 were committed before kickoff. Weeks 3, 4 and 7 are the
+  boards as first committed (eb44e17, d964182 and 24a3c60). Each was later
+  regenerated after its games: weeks 3 and 4 in 24a3c60 (2026-10-20 UTC), week
+  7 in db8eba6 (2026-10-27 UTC). Those reruns are kept in `reports/reruns/`,
+  which `score_boards.py` does not read, so they cannot stand in for the
+  forecast.
 - Weeks 5 and 6 were first committed in 24a3c60, after their games. They are
   shown and not counted.
 - Week 4's commit is dated 2026-09-29, but GitHub first received it on
   2026-10-16. On the publicly checkable clock only weeks 2, 3 and 7 count.
-- The week 8 board was committed and pushed on 2026-10-28, before the week's
-  first game.
+- The week 8 board (28 kickers) was committed in db8eba6 at 12:18 UTC on
+  2026-10-27 and reached GitHub at 12:28, before the week's first kickoff at
+  00:15 UTC on 2026-10-30. Its games are not final, so it is not scored yet.
+- Weeks 2 and 3 were built by the code as it stood before the roof-flag fix
+  (f04d00e), so the counted weeks do not all come from today's model.
 
 | week | kickers scored | board lift | implied-total lift | board minus implied | counted |
 |---|---|---|---|---|---|
@@ -546,7 +556,8 @@ scorecard also records when each commit first reached GitHub.
 | 7 | 26 | +0.837 | +0.669 | +0.168 | yes |
 | **weeks 2, 3, 4, 7** | **120** | **+0.361** | **+0.267** | **+0.094** | |
 
-Lift is the same R=2 decision lift as the backtest. Two listed kickers who did
+Lift is the same decision lift as the backtest (two random starters per
+decision). Two listed kickers who did
 not kick in week 7 are left out of that week.
 
 On the four weeks committed before kickoff the board beat ranking by the implied
@@ -568,7 +579,7 @@ changed:
 | 58e3d15 | 0.434 (17.8%) | +0.072 [+0.014, +0.130], p = 0.015 | First rebuild. `backtest.py` did not fit the ridge, so this came from a separate run the code could not reproduce. |
 | 6220fa2 | 0.4415 (18.1%) | +0.0795 [+0.0234, +0.1369], p = 0.006 | The ridge became a row in `backtest.py`, run on refreshed data (14,487 kicker-games against 14,457). cba5708 then had the board's note read these from the saved backtest instead of carrying typed-in copies. |
 | f04d00e | 0.432 (17.6%) | +0.079 [+0.030, +0.128], p = 0.001; season bootstrap p = 0.028 | Exact lift instead of 300 simulated draws a week, and the roof-flag fix, which took the model from 14 live features to 16. |
-| 8048153 | 0.427 (17.4%) | +0.074 [+0.024, +0.124], p = 0.0036; season-level t p = 0.095 | Every play-by-play season fetched by the code and checked for coverage, and every CSV regenerated on one data build, with inputs through 2026 week 7. The season-level t-test was added. I have not separated how much of the change each part caused. |
+| 8048153 | 0.427 (17.4%) | +0.074 [+0.023, +0.124], p = 0.0036; season-level t p = 0.095 | Every play-by-play season fetched by the code and checked for coverage, and every CSV regenerated on one data build, with inputs through 2026 week 7. The season-level t-test was added. I have not separated how much of the change each part caused. |
 
 Across the four the lift stayed between 0.427 and 0.442 and the edge over the
 line between +0.072 and +0.080. The week-block p moved from 0.015 to 0.001 and
@@ -576,7 +587,7 @@ back to 0.0036. A p-value that moves by a factor of 15 with data refreshes and
 scoring fixes is a poor basis for a claim, which is one more reason to quote the
 season-level test.
 
-## Honest limits
+## Limits
 
 - The market inputs are closing lines. The board is valid for a lineup set close
   to kickoff; the backtest says nothing about a Tuesday read on an opening line.
@@ -587,12 +598,13 @@ season-level test.
   season.
 - 2018 to 2025 is not a clean test of the shipped model. The 16 features, alpha
   = 100 and the ridge itself were chosen while looking at these seasons. The
-  bake-off tunes its challengers honestly; the shipped model was not chosen that
+  bake-off tunes its challengers only on earlier seasons; the shipped model was not chosen that
   way. The live 2026 boards are the out-of-sample test, and four weeks of them
   settle nothing yet.
 - `P(15+)` is right on average and weak per kicker.
-- Kicker is the position where streaming on implied total gets you most of the
-  available value: the line alone gets 83% of the ridge's lift. This model is
+- Streaming kickers (picking up whoever has the best matchup each week) on the
+  implied total gets most of what any model here finds: the line alone gets 83%
+  of the ridge's lift, and 14.4% of the oracle's. This model is
   worth having; it is not worth agonising over.
 - The roster read comes from the last man who actually kicked for each team, so a
   kicker signed on Wednesday will not appear. Rows carry a staleness flag, and a
@@ -647,8 +659,8 @@ Where each section's numbers live:
 | live 2026 | `reports/live_2026_scorecard.csv`, `reports/live_2026_scorecard_weeks.csv` |
 | the retired 73-feature table | `legacy/reports/model_summary.csv` |
 
-Most modules carry an assert-based `--self-check` that runs offline on
-synthetic data, and `pytest -q` runs all of them with the network blocked. Two
-real bugs were caught by those checks before they shipped: a sign error in the
-implied-total algebra, and a team-game aggregation that double counted a score
-when two men kicked in the same game.
+Every module in `src/` carries an assert-based `--self-check` that runs
+offline on synthetic data, and `pytest -q` runs all of them with the network
+blocked. Two real bugs were caught by those checks before they shipped: a sign
+error in the implied-total algebra, and a team-game aggregation that double
+counted a score when two men kicked in the same game.

@@ -101,7 +101,7 @@ From the repo root, with `OMP_NUM_THREADS=1`:
 ```
 python src/kicker_analysis/build_dataset.py     # data/processed/kicker_games.parquet
 python src/kicker_analysis/fourth_down.py       # data/processed/fourth_down.parquet, fills the pbp cache
-python experiments/fifty_plus/fifty_plus.py     # about 10 seconds; writes the three CSVs
+python experiments/fifty_plus/fifty_plus.py     # seconds (7 s on 2026-10-28); writes the three CSVs
 python experiments/fifty_plus/fifty_plus.py --self-check   # offline, synthetic data, writes nothing
 ```
 

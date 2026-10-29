@@ -2,46 +2,56 @@
 
 [![CI](https://github.com/tdub29/Kicker-Analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/tdub29/Kicker-Analysis/actions/workflows/ci.yml)
 
-Can a model pick a better fantasy kicker than the Vegas line? A little, and
-this repo is mostly about how I know how little.
+Can a model pick a better fantasy kicker than the Vegas line? Maybe by a little,
+and this repo is mostly about how I measured how little.
 
 It forecasts weekly NFL kicker fantasy points, scores every method on the
-start/sit decision a manager actually makes, publishes a board each week, and
+start/sit decision a manager actually makes, publishes a ranked board of every starting kicker each week, and
 keeps the results that did not work next to the ones that did.
 
-- **Start the kicker whose offence Vegas expects to score most.** That one
-  number captures most of the value any method here finds.
+- **Start the kicker whose offence Vegas expects to score most.** That is the
+  implied team total, worked out from the point spread and the over/under, and
+  that one number captures most of the value any method here finds.
 - **The model adds a small edge on top of it.** A ridge regression on 16
-  pre-kickoff features gains 0.427 points a week over a random start, against
+  pre-kickoff features gains 0.427 points a week over a coin flip when choosing between two of the
+  week's starters, against
   0.353 for the implied team total alone, out of 2.458 for an oracle who always
   starts the better kicker. It is ahead of the line in 6 of 8 backtest seasons;
   with eight seasons that edge is suggestive, not established (season-level
   p = 0.095).
 - **Why the ceiling is low.** A kicker's week is mostly field goals, and weekly
-  field-goal attempts showed close to no out-of-sample skill (R² +0.003, 95% CI
-  −0.003 to +0.009). Extra-point attempts, which are touchdowns, are the
+  field-goal attempts showed close to no out-of-sample skill (R² +0.003 for the count
+  model and +0.007 for the ridge, both under 0.01). Extra-point attempts, which are touchdowns, are the
   predictable part (R² +0.126). A kicker forecast is mostly a touchdown forecast,
   which is why the betting line is hard to beat.
+- **Scored live in 2026.** Each week's board is committed before kickoff and
+  scored after the games. Over the four counted weeks it beat the implied total
+  by 0.09 points a week, with a 95% interval of −0.26 to +0.45: too few weeks to
+  tell them apart.
 
 ## Forecast inputs and results
 
 ![Kicker forecast inputs, ranking and count models, and reported backtest results](docs/images/fantasy-football-04.webp)
 
-Model inputs and the backtest headline as of the 2026-09-29 run. The graphic's
-p = 0.001 is that run's week-block bootstrap; on the current build the same test
-gives p = 0.004, and counting each season once gives p = 0.095. Its 8.5% / 8.4%
-is the pooled chance of a 15-point week, which matches on average but separates
-kickers only weakly. Current figures and their uncertainty are below.
+Model inputs and the backtest headline as of the 2026-09-29 run. Two of its
+labels are stronger than the current evidence. "Beats Vegas totals" rests on
+that run's week-block test (p = 0.001). On the current build the edge is +0.074
+a week, the same test gives p = 0.004, and counting each season once gives
+p = 0.095, so the edge is suggestive, not established. "Calibrated" means right
+on average only: the pooled chance of a 15-point week matches (8.39% predicted,
+8.41% realised), but it separates kickers only weakly (AUC 0.55). Model 2's
+Poisson is its training objective; its draws are narrower binomials. Current
+figures and their uncertainty are below.
 
 ## What it does
 
 | | |
 |---|---|
-| **data** | 14,638 kicker-games from nflverse, 1999 to 2026 week 7; the model uses the 5,945 regular-season games from 2015 on |
+| **data** | 14,638 kicker-games from nflverse, 1999 to 2026 week 7; the model uses the 5,945 regular-season kicker-games from 2015 on |
 | **target** | each week's actual fantasy points |
 | **ranking** | a ridge regression on 16 named features, all known before kickoff |
 | **distribution** | two LightGBM count models for field-goal and extra-point attempts, simulated through the scoring rule |
-| **output** | a weekly board in `reports/`, with a floor, a ceiling and `P(15+)` for every starter |
+| **output** | a weekly board in `reports/`, with a floor and ceiling (20th and 90th percentiles) and `P(15+)` for every starter |
 
 ## Does it work
 
@@ -51,6 +61,12 @@ starting either at random. The lift is the exact expectation over every pair of
 starters in the week, not a simulation. Eight season-forward folds, 2018 to
 2025: each test season is predicted by a model trained only on the seasons
 before it. 4,211 kicker-games in 141 weeks.
+
+Two caveats. The betting inputs are closing lines, so the backtest describes a
+lineup set near kickoff, while the board is built earlier in the week on an
+earlier line. And I chose the 16 features, the penalty and the ridge itself
+while looking at these seasons, so this is not a clean holdout; the live 2026
+boards are.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/decision-lift-by-method-dark.png">
@@ -65,18 +81,21 @@ before it. 4,211 kicker-games in 141 weeks.
 | kicker's own career average | 0.180 | 7.3% |
 | a constant 8.0 | 0.000 | 0.0% |
 
-The two comparisons that matter are against what people do instead:
+The two comparisons that matter are against simple rules a manager could use
+instead:
 
 | ridge minus | difference, pts/wk | 141 weeks as units | 8 seasons as units | seasons ahead |
 |---|---|---|---|---|
-| Vegas implied total alone | +0.074 | 95% CI [+0.024, +0.124], p = 0.004 | t-test p = 0.095, CI [−0.016, +0.162] | 6 of 8 |
-| kicker career average | +0.247 | 95% CI [+0.156, +0.335], p < 0.0001 | t-test p = 0.001, CI [+0.132, +0.362] | 8 of 8 |
+| Vegas implied total alone | +0.074 | 95% CI [+0.023, +0.124], p = 0.004 | t-test p = 0.095, CI [−0.016, +0.162] | 6 of 8 |
+| kicker career average | +0.247 | 95% CI [+0.156, +0.335], p < 0.0001 | t-test p = 0.0014, CI [+0.132, +0.362] | 8 of 8 |
 
 The first column of tests resamples weeks (a block bootstrap), which says the
 edge over the line is clear week to week inside these eight seasons. The second
-treats each season as one observation, which is the honest unit for "will it
+treats each season as one observation, which is the right unit for "will it
 beat the line next year", and there the edge over the line is not significant.
-It loses 2019 and 2021, and most of it comes from 2022 onward:
+It loses 2019 and 2021, and most of it comes from 2022 onward, when ranking by
+the line alone fell from 0.423 to 0.286 points a week while the ridge held at
+about 0.43:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/ridge-vs-implied-total-by-season-dark.png">
@@ -87,7 +106,7 @@ Fourteen challengers, each tuned only on seasons before its test season, were
 run against the ridge in `model_bakeoff.py`: count GLMs, gradient-boosted and
 pairwise rankers, a model of the residual after the betting line, a ridge with
 its penalty chosen by an inner loop, and others. None is distinguishable from it
-after Holm correction. The closest, the ridge plus a shrunk per-kicker effect,
+after Holm correction for testing fourteen models at once. The closest, the ridge plus a per-kicker effect pulled toward the league average,
 is +0.012 a week (95% CI −0.010 to +0.034), ahead in 7 of 8 seasons. The
 [model-selection notes](notes/model-selection-2026-09-29.md) have the full
 table.
@@ -103,9 +122,9 @@ first committed after their games, so they are shown and not counted.
 
 | week | kickers scored | board lift | implied-total lift | board minus implied | counted |
 |---|---|---|---|---|---|
-| 2 | 30 | −0.121 | +0.116 | −0.237 | yes |
-| 3 | 32 | −0.239 | −0.455 | +0.216 | yes |
-| 4 | 32 | +0.968 | +0.739 | +0.229 | yes |
+| 2 | 30 | −0.122 | +0.116 | −0.238 | yes |
+| 3 | 32 | −0.240 | −0.456 | +0.216 | yes |
+| 4 | 32 | +0.968 | +0.739 | +0.229 | yes, commit clock only |
 | 5 | 28 | +1.294 | +0.522 | +0.771 | no |
 | 6 | 25 | +0.473 | −0.608 | +1.082 | no |
 | 7 | 26 | +0.837 | +0.669 | +0.168 | yes |
@@ -115,9 +134,9 @@ Over the four counted weeks the board beat ranking by the implied total by 0.09
 points a week, with a 95% interval of −0.26 to +0.45. Four weeks cannot tell
 the two apart. Week 4's commit is dated before its games, but GitHub first
 received it afterwards; counting only the boards GitHub had before kickoff
-(weeks 2, 3 and 7), the edge is +0.05. The week 8 board was pushed before the
-week's first game. Listed kickers who did not kick are left out of that week's
-lift.
+(weeks 2, 3 and 7), the edge is +0.05. The week 8 board was committed and
+pushed on 2026-10-27, before the week's first game, and is scored once its games
+are final. Listed kickers who did not kick are left out of that week's lift.
 
 ## What the probabilities are, and are not
 
@@ -137,7 +156,7 @@ calibration slope of 0.55, so the stated chances are too spread out. At 8+ and
 
 Read `P(15+)` as a rough flag for upside, not as a probability to bet on.
 
-## What almost shipped broken
+## What was broken, and how I found it
 
 The current version is a rebuild. Most of what it does differently came from
 finding these:
@@ -148,7 +167,7 @@ finding these:
 - **Observed weather does not exist before kickoff.** Temperature and wind
   ranked 3rd and 7th by importance, and none of the 255 unplayed games in the
   schedule file carried either. They are replaced by stadium climate: the
-  venue's typical wind and temperature in that month in earlier seasons.
+  venue's typical wind in that month in earlier seasons, zero indoors.
 - **Retractable-roof state is a game-day decision.** `open` and `closed` never
   appear on an unplayed game, yet 15.1% of training rows carried one. The first
   fix keyed the building on a column the table did not have, so both roof flags
@@ -159,8 +178,9 @@ finding these:
   frame, all 17 were accepted silently; three were same-game outcomes, and MAE
   fell from 3.49 to 2.65. The features are now an explicit list of 16 names.
 - **The 2021 season was missing.** The upstream kicking release skips it, and
-  every metric looked healthy without its 561 games. The build now rebuilds any
-  missing season from play-by-play and stops if a season is incomplete.
+  every metric looked healthy without its 561 kicker-games. The build now
+  rebuilds any missing season from play-by-play and stops if a season is
+  incomplete.
 - **A fresh clone quietly built 4 of 12 seasons of coach data.** The
   fourth-down features read whatever play-by-play happened to be cached, so a
   new checkout imputed them for most seasons and the backtest still ran green.
@@ -176,15 +196,17 @@ finding these:
 Kept because a null result is a result.
 
 Three more feature families were built and re-tested under the current ridge
-with the exact lift (`experiments/feature_families/ridge_retest.py`):
+with the exact lift (`experiments/feature_families/ridge_retest.py`): MAE is mean
+absolute error in points; within-week ρ is the rank correlation between
+forecast and result among that week's kickers.
 
 | added to the 16 | columns | MAE | within-week ρ | lift, pts/wk |
 |---|---|---|---|---|
 | nothing | 0 | 3.472 | 0.171 | 0.427 |
 | red-zone efficiency | +27 | 3.476 | 0.149 | 0.370 |
-| drive-level offence | +21 | 3.482 | 0.168 | 0.418 |
+| drive-level offence | +21 | 3.482 | 0.167 | 0.418 |
 | leg strength and stadium | +13 | 3.473 | 0.159 | 0.396 |
-| all three | +61 | 3.485 | 0.142 | 0.347 |
+| all three | +61 | 3.485 | 0.141 | 0.347 |
 
 Every family made the ranking worse. None beats its own columns shuffled within
 each season on lift; drive-level offence comes closest, ahead of 46 of 50
@@ -194,16 +216,18 @@ Willingness to attempt long field goals was measured separately
 (`experiments/fifty_plus/`). League-wide, the share of fourth downs in 50+
 range that became field-goal attempts rose from 0.274 in 2015 to 0.440 in 2025.
 But a team gets a median of 9 such chances a season, so much of the
-team-to-team spread is sampling noise (about two-thirds of it in the median
-season), and adding a shrunk team rate to the ridge gains +0.002 a week (95% CI
+team-to-team spread is sampling noise (about three-quarters of it in the median
+season), and adding a team rate pulled toward the league average to the ridge gains +0.002 a week (95% CI
 −0.007 to +0.012, p = 0.64), ahead in 4 of 8 seasons. Not added.
 
-Three earlier claims were retracted when the evidence did not hold them up.
-Field-goal attempts were described as having negative skill (R² −0.054); on the
-current models they have about zero. A separate "ceiling" board was said to be
-needed to catch big weeks; ranking by expected points already beats random on
-15-point weeks. And `P(15+)` was called calibrated; it is right on average only.
-[METHOD.md](METHOD.md) has each one and the numbers behind it.
+Several earlier claims were retracted when the evidence did not hold them up.
+Three of them: field-goal attempts were described as having negative skill
+(R² −0.054); on the current models they have about zero. A separate "ceiling"
+board was said to be needed to catch big weeks; ranking by expected points
+already hits 15-point weeks more often than random in the backtest (9.2%
+against 8.4%, point estimates with no interval). And `P(15+)` was called calibrated; it
+is right on average only. [METHOD.md](METHOD.md) has every retraction and the
+numbers behind it.
 
 ## What transfers beyond football
 
@@ -224,7 +248,7 @@ Python 3.11 or newer.
 pip install -r requirements.txt     # or: pip install -e ".[dev]"
 export OMP_NUM_THREADS=1            # LightGBM thread contention can turn a one-second fit into minutes
 
-python scripts/run_pipeline.py      # every step below, in order; stops at the first failure
+python scripts/run_pipeline.py      # every step below but the bake-off, in order; --bakeoff adds it
 ```
 
 or one step at a time:
@@ -233,17 +257,17 @@ or one step at a time:
 python src/kicker_analysis/build_dataset.py     # nflverse to one row per kicker per game
 python src/kicker_analysis/fourth_down.py       # coach aggression, every season 2015 on
 python src/kicker_analysis/backtest.py          # the tables above
+python src/kicker_analysis/model_bakeoff.py     # 14 challengers against the ridge, a few minutes
 python src/kicker_analysis/figures.py           # the charts above
 python src/kicker_analysis/score_boards.py      # the live 2026 record
 python src/kicker_analysis/predict_week.py      # this week's board
-python src/kicker_analysis/model_bakeoff.py     # 14 challengers against the ridge, a few minutes
 ```
 
 Inputs are fetched live, so a rerun on later data can move the last digit;
 `reports/data_manifest.json` records the hash of every input behind the tracked
-CSVs. Most modules carry an assert-based `--self-check` that runs offline on
-synthetic data. `pytest -q` runs all of them with the network blocked, and CI
-runs that on Python 3.11 to 3.13.
+CSVs. Every module in `src/` carries an assert-based `--self-check` that runs
+offline on synthetic data. `pytest -q` runs all of them with the network
+blocked, and CI runs that on Python 3.11 to 3.13.
 
 ## Layout
 

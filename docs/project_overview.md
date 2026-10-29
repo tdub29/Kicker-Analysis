@@ -14,11 +14,11 @@ module writes which file, and which module reads it. Column definitions are in
 | `tests/` | `test_self_checks.py`, a pytest wrapper that finds every module with a self-check by reading its source, runs each in a fresh interpreter, and also runs `scripts/run_pipeline.py`'s own checks. `test_repo_hygiene.py` fails on a personal absolute path in any committed text file, and on a relative link or image in `README.md` or `METHOD.md` that does not resolve or could not be committed. `tests/offline/sitecustomize.py` makes any network connection fail, so a check that starts downloading fails. |
 | `.github/workflows/ci.yml` | runs `pytest` on Python 3.11, 3.12 and 3.13 on every push and pull request |
 | `.github/workflows/weekly-board.yml` | Wednesdays at 15:07 UTC, September to January: builds the dataset, the fourth-down table and the coming week's board (`predict_week.py --max-days-ahead 6`), and commits only a new `reports/week_*_kickers.csv`. It fails rather than commit a change to a board that is already tracked. |
-| `reports/` | the tracked evidence: the small CSVs behind the numbers in the README and `METHOD.md`, the input manifest, and the weekly boards. Parquet dumps land here too and are gitignored. |
+| `reports/` | the tracked evidence: the small CSVs behind the numbers in the README and `METHOD.md`, the input manifest, and the weekly boards as first committed. `reports/reruns/` keeps the week 3, 4 and 7 boards as they were regenerated after their games, apart from the forecasts. Parquet dumps land here too and are gitignored. |
 | `experiments/` | one-off experiments (the three refuted feature families, willingness to attempt 50+) with their scripts and saved logs. The CSVs they write are in `reports/`. Not part of the pipeline. |
 | `notes/` | dated decision write-ups. `model-selection-2026-09-29.md` is the bake-off behind the ridge; a note at its top gives the 2026-10-28 rerun. |
 | `legacy/` | the retired R and Python pipelines, the R workflow's data and the v1 harness's output (`legacy/reports/`), each with the reason it was retired, in `legacy/README.md`. Nothing there runs. |
-| `docs/` | this page, `data_dictionary.md`, and `images/`, the README's charts |
+| `docs/` | this page, `data_dictionary.md`, and `images/`: the README's three charts (light and dark PNGs from `figures.py`) and `fantasy-football-04.webp`, the author's graphic of the inputs, the two models and the 2026-09-29 headline, shown at the top of the README with a caption giving the current numbers |
 | `data/` | not in the repository. Created on the first run: `data/external/` caches the downloads and `data/processed/` holds the built tables. Both are gitignored, and `build_dataset.py` and `fourth_down.py` rebuild them from scratch. |
 
 `pyproject.toml` installs the package in editable mode (`pip install -e .`);
@@ -99,7 +99,8 @@ whatever is in `data/external/`, so run `fourth_down.py` before them.
 | `reports/backtest_predictions.parquet` | `backtest.py` | `predict_week.py` (site payload only) | no |
 | `reports/model_bakeoff_*.csv` | `model_bakeoff.py` | `figures.py` (summary, folds, slices); `notes/model-selection-2026-09-29.md` | yes |
 | `reports/model_bakeoff_predictions.parquet` | `model_bakeoff.py` | nothing | no |
-| `reports/week_<season>_<week>_kickers.csv` | `predict_week.py`, which never overwrites one without `--force`; `.github/workflows/weekly-board.yml` commits each new one before kickoff. With `--site-out` or `KICKER_SITE_JS` it also writes the payload the author's Fantasy Football site loads. | `score_boards.py`; these are the published boards | yes |
+| `reports/week_<season>_<week>_kickers.csv` | `predict_week.py`, which never overwrites one without `--force`; `.github/workflows/weekly-board.yml` commits each new one before kickoff. With `--site-out`, or with `KICKER_SITE_JS` for the upcoming week, it also writes the payload the author's Fantasy Football site loads. | `score_boards.py`; these are the published boards, each as first committed | yes |
+| `reports/reruns/week_<season>_<week>_kickers_rerun_<date>.csv` | `predict_week.py`, run again after that week's games (weeks 3 and 4 in 24a3c60, week 7 in db8eba6) | nothing: kept so a rerun cannot stand in for the forecast, and outside the folder `score_boards.py` reads | yes |
 | `reports/live_2026_scorecard.csv`, `live_2026_scorecard_weeks.csv` | `score_boards.py` | the README's live record. `score_boards.py` reads the weeks file back, to reuse its recorded clocks with `--offline` or without git history. | yes |
 | `reports/feature_family_ridge_retest.csv` | `experiments/feature_families/ridge_retest.py` | `experiments/README.md` | yes |
 | `reports/feat_redzone_results.csv`, `feat_redzone_control.csv` | `experiments/feature_families/feat_redzone_eval.py`, `feat_redzone_control.py` | `experiments/README.md` | yes |
@@ -107,3 +108,4 @@ whatever is in `data/external/`, so run `fourth_down.py` before them.
 | `legacy/reports/model_summary.csv`, `season_forward_results.csv`, `feature_importance.csv` | the retired v1 harness, now `legacy/evaluate_v1.py` | nothing: kept as the record of what v1 measured (7 folds; 2021 was missing from the data then) | yes |
 | `reports/decision_metrics.csv`, `predictions.parquet` | `evaluate.py` | nothing | no |
 | `docs/images/*.png` | `figures.py` | the README | yes |
+| `docs/images/fantasy-football-04.webp` | no script here: the author's graphic, added in aebf54f, with the 2026-09-29 run's numbers | the README, with a caption giving the current figures | yes |

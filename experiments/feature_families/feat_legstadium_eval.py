@@ -15,9 +15,9 @@ ridge_retest.py in this folder.
 NO RESULT IS ON RECORD from this script. Its saved stdout,
 legstadium_eval_out.txt, stops after "fold 2024 done": the run never reached the
 2025 fold or the summary, and reports/feat_legstadium_results.csv, which it
-writes at the very end, was never produced. That run had 2021 missing from
-kicker_games.parquet (6 folds); build_dataset.py now fills 2021 from
-play-by-play, so a rerun has 7.
+writes at the very end, was never produced. At the time this ran, 2021 was
+missing from kicker_games.parquet (6 folds); build_dataset.py now fills 2021
+from play-by-play, so a rerun has 7.
 
     python experiments/feature_families/feat_legstadium_eval.py
 """
@@ -73,9 +73,9 @@ def main() -> int:
     for s in TEST_SEASONS:
         tr, te = df[df.season < s], df[df.season == s]
         # A season with almost no rows is skipped for both arms identically, the
-        # same rule evaluate.py uses. When the saved log was made this dropped
-        # 2021: the nflverse kicking release has no 2021 rows and the build then
-        # backfilled only seasons after RELEASE_LAST_SEASON from pbp.
+        # same rule evaluate.py uses. At the time this ran, that dropped 2021:
+        # the nflverse kicking release has no 2021 rows, and the build then
+        # filled from play-by-play only the seasons after the release's last.
         if len(te) < 50:
             print(f"  fold {s} skipped, {len(te)} rows in the dataset", flush=True)
             continue
