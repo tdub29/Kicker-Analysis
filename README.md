@@ -26,7 +26,7 @@ keeps the results that did not work next to the ones that did.
   which is why the betting line is hard to beat.
 - **Scored live in 2026.** Each week's board is committed before kickoff and
   scored after the games. Over the four counted weeks it beat the implied total
-  by 0.09 points a week, with a 95% interval of −0.26 to +0.45: too few weeks to
+  by 0.09 points a week, with a 95% t interval of −0.26 to +0.45: too few weeks to
   tell them apart.
 
 ## Forecast inputs and results
@@ -131,7 +131,7 @@ first committed after their games, so they are shown and not counted.
 | **weeks 2, 3, 4, 7** | **120** | **+0.361** | **+0.267** | **+0.094** | |
 
 Over the four counted weeks the board beat ranking by the implied total by 0.09
-points a week, with a 95% interval of −0.26 to +0.45. Four weeks cannot tell
+points a week, with a 95% t interval of −0.26 to +0.45. Four weeks cannot tell
 the two apart. Week 4's commit is dated before its games, but GitHub first
 received it afterwards; counting only the boards GitHub had before kickoff
 (weeks 2, 3 and 7), the edge is +0.05. The week 8 board was committed and
@@ -208,7 +208,9 @@ forecast and result among that week's kickers.
 | leg strength and stadium | +13 | 3.473 | 0.159 | 0.396 |
 | all three | +61 | 3.485 | 0.141 | 0.347 |
 
-Every family made the ranking worse. None beats its own columns shuffled within
+Every family lowered the lift. Red-zone and all three did so by margins the
+week-block bootstrap separates from zero; for drive-level and leg strength the
+interval includes zero. None beats its own columns shuffled within
 each season on lift; drive-level offence comes closest, ahead of 46 of 50
 shuffles.
 
