@@ -267,7 +267,8 @@ Inputs are fetched live, so a rerun on later data can move the last digit;
 `reports/data_manifest.json` records the hash of every input behind the tracked
 CSVs. Every module in `src/` carries an assert-based `--self-check` that runs
 offline on synthetic data. `pytest -q` runs all of them with the network
-blocked, and CI runs that on Python 3.11 to 3.13.
+blocked (install `requirements-dev.txt` first, which adds pytest), and CI runs
+that on Python 3.11 to 3.13.
 
 ## Layout
 
