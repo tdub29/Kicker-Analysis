@@ -8,10 +8,13 @@ saw this at all.
 
 What counts as a decision, and why each filter is here:
 
-  in range      `yardline_100` <= 38, which is a 55-yard attempt after the seven
-                yards of snap and hold. Beyond that the field goal is not really
-                on the menu, so including those plays measures leg strength, not
-                coaching.
+  in range      `yardline_100` <= 38. In nflverse play-by-play a field goal's
+                `kick_distance` is its `yardline_100` plus 18 for most attempts
+                (the 10-yard end zone and about eight yards of snap and hold;
+                experiments/fifty_plus/README.md has the split), so the edge of
+                range is typically a 56-yard attempt. Beyond that the field goal
+                is not really on the menu, so including those plays measures leg
+                strength, not coaching.
   competitive   win probability between 5% and 95%. A four-score game is not a
                 choice, and garbage time would otherwise read as aggression.
   not a scramble for the clock
@@ -67,17 +70,18 @@ OUT = ROOT / "data" / "processed" / "fourth_down.parquet"
 # pbp only carries win probability and clean play typing from 2015 on, and 2015
 # is also when the extra point moved back, so it is the natural floor for both.
 FIRST_SEASON = 2015
-IN_RANGE_YARDLINE = 38     # 38 + 7 + 10 = a 55 yard attempt
+IN_RANGE_YARDLINE = 38     # 38 + 18 = a 56-yard attempt for most kicks
 WP_LO, WP_HI = 0.05, 0.95
 MIN_HALF_SECONDS = 120
 
 # Team-games with at least one fourth down in range, per team-game played. A
-# team-game with none has no row, so the share sits well below 1: the build of
-# 2026-10-26 measured 0.801 (2018) to 0.868 (2026) per season for 2015-2026. A
-# missing season reads 0. On that build, removing the first three weeks of a
-# finished season put it under 0.7 for every season but 2022 and 2025, which
-# needed four, and one or two missing weeks passed. This guards against a lost
-# season or a lost month of play-by-play, not a lost week.
+# team-game with none has no row, so even a complete season sits well below 1,
+# and a missing season reads 0. On the 2026-10-28 build, removing the first
+# three weeks of a finished season put it under 0.70 for every season but 2022
+# and 2025, which needed four, and one or two missing weeks passed (checked
+# directly against build_dataset.coverage_problems; no committed script runs
+# it). This guards against a lost season or a lost month of play-by-play, not a
+# lost week.
 MIN_TEAM_GAME_SHARE = 0.70
 
 COLS = ["season", "week", "season_type", "game_id", "posteam", "down", "ydstogo",

@@ -1,7 +1,8 @@
 """Adversarial control for the +all rz result, plus which columns carry it.
 
-The headline from feat_redzone_eval.py is that 27 red-zone columns cut pooled
-MAE by 0.047 at p=0.054 over 6 folds. Twenty-seven columns is a lot to hand a
+The headline from feat_redzone_eval.py is that 27 red-zone columns cut MAE by
+0.047 a fold on average over 6 folds (paired t-test p=0.054), 0.048 pooled
+(feat_redzone_eval.log). Twenty-seven columns is a lot to hand a
 gradient booster, and "more columns changed the answer" is not the same claim as
 "red-zone behaviour predicts kicker points". So:
 
@@ -9,7 +10,7 @@ gradient booster, and "more columns changed the answer" is not the same claim as
              to the team-week while preserving every marginal distribution and
              the missingness pattern. Shuffled inside the test/train split it
              belongs to, so no information crosses the fold boundary. If the
-             control also gains 0.047, the real arm proved nothing.
+             control gains as much, the real arm proved nothing.
   importance LightGBM split-gain on the last fold, to name the columns that
              actually carry the effect rather than assert a mechanism.
 
@@ -21,8 +22,9 @@ It reads the frame and the results feat_redzone_eval.py left behind
 reports/feat_redzone_results.csv), so run that first. The control is scored on
 exactly the folds that run used, read from its results, so the two stay paired
 fold for fold. The logged run (feat_redzone_control.log, per-draw results in
-reports/feat_redzone_control.csv) had 6 folds because 2021 was then missing
-from kicker_games.parquet; build_dataset.py has since filled it.
+reports/feat_redzone_control.csv) had 6 folds because, at the time this ran,
+2021 was missing from kicker_games.parquet; build_dataset.py has since filled
+it.
 
     python experiments/feature_families/feat_redzone_control.py
 """

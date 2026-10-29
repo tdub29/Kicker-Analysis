@@ -13,10 +13,11 @@ place in the sixteen.
   regular season, win probability 5% to 95%, not in the last two minutes of a
   half, exactly one of FG / punt / run-or-pass. The rate is FG attempts over
   decisions, and punts stay in the denominator.
-- **Yardline conversion, run two ways.** METHOD.md converts with
-  `distance = yardline_100 + 17` (yardline 33-43 and 20-32). In 2015-2026
-  regular-season play-by-play, `kick_distance - yardline_100` is 18 for 89.7%
-  of FG attempts, 19 for 8.8% and 17 for 1.5%. So the documented long band is
+- **Yardline conversion, run two ways.** The documented convention, the one
+  METHOD.md uses, is `distance = yardline_100 + 17` (yardline 33-43 and
+  20-32). In 2015-2026 regular-season play-by-play,
+  `kick_distance - yardline_100` is 18 for 89.7% of FG attempts, 19 for 8.8%
+  and 17 for 1.5%. So the documented long band is
   mostly 51 to 61 yard attempts, and a typical 50-yarder from the 32 falls in
   the short control. The script runs the documented +17 bands (a
   reproduction) and the offset it measures from the data (+18, yardline 32-42
@@ -41,13 +42,14 @@ Nothing in the feature comes from the season being predicted. It is built from
 season s-1 only, on a dense team x season grid, so a missing season stays
 missing. The self-check asserts this.
 
-## Results, and how they compare with METHOD.md
+## Results, and how they compare with the earlier write-up
 
-From the run logged in `fifty_plus.log`. METHOD.md's figures for this section
-had no committed code behind them (it says the extractor is in `notes/`, which
-holds none). This script reproduces some of them and not others:
+From `reports/fifty_plus_*.csv` and the run's stdout, `fifty_plus.log`. The
+figures METHOD.md gave for this section before this script existed had no
+committed code behind them (it said the extractor was in `notes/`, which held
+none). This script reproduces some of them and not others:
 
-| quantity | METHOD.md | this run (+17 band) |
+| quantity | earlier METHOD.md | this run (+17 band) |
 |---|---|---|
 | league long rate 2021 / 2023 / 2025 | 0.314 / 0.375 / 0.437 | 0.316 / 0.369 / 0.440 |
 | short rate 2021 / 2023 / 2025 | 0.782 / 0.802 / 0.788 | 0.781 / 0.801 / 0.793 |
@@ -63,12 +65,12 @@ holds none). This script reproduces some of them and not others:
 | lift gain from the shrunk feature | +0.021 [-0.018, +0.059], p = 0.27 (72 weeks) | +0.0023 [-0.0074, +0.0121], p = 0.64 (141 weeks) |
 | within-week rho gain | +0.015 | +0.0014 |
 
-The two lift rows are not the same test window. METHOD.md's came from a separate,
-earlier run on 72 weeks with a base lift of 0.4212, and which seasons it tested
-is not recorded. This run tests every season backtest.py tests (2018-2025, 141
-weeks). Its last four test seasons alone (2022-2025, also 72 weeks) give +0.0060,
-the week-weighted mean of the per-season rows in `fifty_plus_lift.csv`. That is
-still under a third of +0.021.
+The two lift rows are not the same test window. The earlier figure came from
+a separate run on 72 weeks with a base lift of 0.4212, and which seasons it
+tested is not recorded. This run tests every season backtest.py tests
+(2018-2025, 141 weeks). Its last four test seasons alone (2022-2025, also 72
+weeks) give +0.0060, the week-weighted mean of the per-season rows in
+`fifty_plus_lift.csv`. That is still under a third of +0.021.
 
 Read plainly:
 
@@ -81,16 +83,16 @@ Read plainly:
   runs from -22.7% to 63.8% (median 24.5%), and in two seasons (2018, 2019) the
   estimated true variance is below zero. In 8 of the 11 seasons most of the
   visible team spread is noise, but no single percentage describes it.
-- **The lift test reaches a weaker conclusion than METHOD.md.** METHOD.md
-  called the feature a near miss: +0.021, p = 0.27, "the sign is right". Here
-  the shrunk feature adds +0.0023 points a week, p = 0.64, and wins 4 of 8
+- **The lift test reaches a weaker conclusion than the earlier write-up.**
+  That called the feature a near miss: +0.021, p = 0.27, "the sign is right".
+  Here the shrunk feature adds +0.0023 points a week, p = 0.64, and wins 4 of 8
   seasons. Its 95% interval tops out at +0.0121, below the +0.021 reported
   before. The ridge coefficient is positive in 7 of 8 folds. The folds are
   expanding windows that share most of their training seasons, though, so that
-  is weak support for the sign. The gain itself is indistinguishable from zero. The raw rate (+0.0031, p = 0.31)
-  and the +18 band (+0.0003 and +0.0006) are no better. This is not a near
-  miss. The feature stays out. More seasons would be testing for a gain about a
-  tenth the size of the one reported before.
+  is weak support for the sign. The gain itself is indistinguishable from zero.
+  The raw rate (+0.0031, p = 0.31) and the +18 band (+0.0003 and +0.0006) are
+  no better. This is not a near miss. The feature stays out. More seasons would
+  be testing for a gain about a tenth the size of the one reported before.
 
 ## Rerun
 
@@ -99,7 +101,7 @@ From the repo root, with `OMP_NUM_THREADS=1`:
 ```
 python src/kicker_analysis/build_dataset.py     # data/processed/kicker_games.parquet
 python src/kicker_analysis/fourth_down.py       # data/processed/fourth_down.parquet, fills the pbp cache
-python experiments/fifty_plus/fifty_plus.py     # about 10 seconds; writes the three CSVs
+python experiments/fifty_plus/fifty_plus.py     # seconds (7 s on 2026-10-28); writes the three CSVs
 python experiments/fifty_plus/fifty_plus.py --self-check   # offline, synthetic data, writes nothing
 ```
 
