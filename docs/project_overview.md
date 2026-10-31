@@ -18,7 +18,7 @@ module writes which file, and which module reads it. Column definitions are in
 | `experiments/` | one-off experiments (the three refuted feature families, willingness to attempt 50+) with their scripts and saved logs. The CSVs they write are in `reports/`. Not part of the pipeline. |
 | `notes/` | dated decision write-ups. `model-selection-2026-09-29.md` is the bake-off behind the ridge; a note at its top gives the 2026-10-28 rerun. |
 | `legacy/` | the retired R and Python pipelines, the R workflow's data and the v1 harness's output (`legacy/reports/`), each with the reason it was retired, in `legacy/README.md`. Nothing there runs. |
-| `docs/` | this page, `data_dictionary.md`, and `images/`: the README's three charts (light and dark PNGs from `figures.py`) and `fantasy-football-04.webp`, the author's graphic of the inputs, the two models and the 2026-09-29 headline, shown at the top of the README with a caption giving the current numbers |
+| `docs/` | this page, `data_dictionary.md`, and `images/`: the README's three charts (light and dark PNGs from `figures.py`) and `fantasy-football-04.webp`, the author's graphic of the inputs, the two models and the 2026-09-29 headline, kept in the repository and no longer shown in the README because its "Beats Vegas totals" and "Calibrated" labels read stronger than the current evidence |
 | `data/` | not in the repository. Created on the first run: `data/external/` caches the downloads and `data/processed/` holds the built tables. Both are gitignored, and `build_dataset.py` and `fourth_down.py` rebuild them from scratch. |
 
 `pyproject.toml` installs the package in editable mode (`pip install -e .`);
@@ -108,4 +108,4 @@ whatever is in `data/external/`, so run `fourth_down.py` before them.
 | `legacy/reports/model_summary.csv`, `season_forward_results.csv`, `feature_importance.csv` | the retired v1 harness, now `legacy/evaluate_v1.py` | nothing: kept as the record of what v1 measured (7 folds; 2021 was missing from the data then) | yes |
 | `reports/decision_metrics.csv`, `predictions.parquet` | `evaluate.py` | nothing | no |
 | `docs/images/*.png` | `figures.py` | the README | yes |
-| `docs/images/fantasy-football-04.webp` | no script here: the author's graphic, added in aebf54f, with the 2026-09-29 run's numbers | the README, with a caption giving the current figures | yes |
+| `docs/images/fantasy-football-04.webp` | no script here: the author's graphic, added in aebf54f, with the 2026-09-29 run's numbers | nothing: no longer shown in the README | no |

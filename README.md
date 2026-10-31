@@ -9,6 +9,11 @@ It forecasts weekly NFL kicker fantasy points, scores every method on the
 start/sit decision a manager actually makes, publishes a ranked board of every starting kicker each week, and
 keeps the results that did not work next to the ones that did.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/decision-lift-by-method-dark.png">
+  <img src="docs/images/decision-lift-by-method-light.png" width="800" alt="Horizontal bar chart of decision lift: points a week gained over a coin flip by starting whichever of two random starters each method prefers, over eight season-forward test seasons, 2018 to 2025. Ridge on 16 features, which orders the board: 0.427 (17.4% of the oracle); Count model, expected points: 0.362 (14.7% of the oracle); Vegas implied team total alone: 0.353 (14.4% of the oracle); Kicker's own career average: 0.180 (7.3% of the oracle); A constant 8.0: 0.000 (0.0% of the oracle). The oracle gains 2.46.">
+</picture>
+
 - **Start the kicker whose offence Vegas expects to score most.** That is the
   implied team total, worked out from the point spread and the over/under, and
   that one number captures most of the value any method here finds.
@@ -28,20 +33,6 @@ keeps the results that did not work next to the ones that did.
   scored after the games. Over the four counted weeks it beat the implied total
   by 0.09 points a week, with a 95% t interval of −0.26 to +0.45: too few weeks to
   tell them apart.
-
-## Forecast inputs and results
-
-![Kicker forecast inputs, ranking and count models, and reported backtest results](docs/images/fantasy-football-04.webp)
-
-Model inputs and the backtest headline as of the 2026-09-29 run. Two of its
-labels are stronger than the current evidence. "Beats Vegas totals" rests on
-that run's week-block test (p = 0.001). On the current build the edge is +0.074
-a week, the same test gives p = 0.004, and counting each season once gives
-p = 0.095, so the edge is suggestive, not established. "Calibrated" means right
-on average only: the pooled chance of a 15-point week matches (8.39% predicted,
-8.41% realised), but it separates kickers only weakly (AUC 0.55). Model 2's
-Poisson is its training objective; its draws are narrower binomials. Current
-figures and their uncertainty are below.
 
 ## What it does
 
@@ -67,11 +58,6 @@ lineup set near kickoff, while the board is built earlier in the week on an
 earlier line. And I chose the 16 features, the penalty and the ridge itself
 while looking at these seasons, so this is not a clean holdout; the live 2026
 boards are.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/decision-lift-by-method-dark.png">
-  <img src="docs/images/decision-lift-by-method-light.png" width="800" alt="Horizontal bar chart of decision lift: points a week gained over a coin flip by starting whichever of two random starters each method prefers, over eight season-forward test seasons, 2018 to 2025. Ridge on 16 features, which orders the board: 0.427 (17.4% of the oracle); Count model, expected points: 0.362 (14.7% of the oracle); Vegas implied team total alone: 0.353 (14.4% of the oracle); Kicker's own career average: 0.180 (7.3% of the oracle); A constant 8.0: 0.000 (0.0% of the oracle). The oracle gains 2.46.">
-</picture>
 
 | rank by | lift, pts/wk | share of oracle |
 |---|---|---|
@@ -142,7 +128,8 @@ are final. Listed kickers who did not kick are left out of that week's lift.
 
 The board also gives each kicker a full points distribution from a second
 model: two LightGBM count models for field-goal and extra-point attempts, drawn
-and pushed through the scoring rule by Monte Carlo. Pooled over all 4,211 test
+and pushed through the scoring rule by Monte Carlo. The Poisson is the training
+objective; the draws are narrower binomials. Pooled over all 4,211 test
 rows its stated chance of a 15-point week matches how often it happened (8.39%
 predicted, 8.41% realised). Kicker by kicker it barely beats a constant: Brier
 skill over the base rate +0.001 (95% CI −0.004 to +0.006), AUC 0.55, and a
