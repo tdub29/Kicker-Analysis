@@ -74,7 +74,7 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from kicker_analysis.backtest import (FIRST_TEST, MIN_WEEKS, boot_lift,  # noqa: E402
+from kicker_analysis.backtest import (FIRST_TEST, LAST_TEST, MIN_WEEKS, boot_lift,  # noqa: E402
                                       decision, per_week_lift, rho)
 from kicker_analysis.features import check_roof  # noqa: E402
 from kicker_analysis.model import (CompoundKickerModel, FEATURES,  # noqa: E402
@@ -424,7 +424,8 @@ def run(quick: bool) -> int:
     print("  roof flags sd: " + ", ".join(f"{c} {df[c].std():.3f}"
                                          for c in ("is_indoor_certain", "is_retractable")))
     seasons = sorted(df.season.unique())
-    tests = [s for s in seasons if s >= FIRST_TEST and df[df.season == s].week.nunique() >= MIN_WEEKS]
+    tests = [s for s in seasons if FIRST_TEST <= s <= LAST_TEST
+             and df[df.season == s].week.nunique() >= MIN_WEEKS]
     n_inner, n_boot = (1, 1000) if quick else (3, 10000)
     if quick:
         tests = tests[-3:]

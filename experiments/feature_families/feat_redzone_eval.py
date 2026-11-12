@@ -17,9 +17,10 @@ numeric column features.feature_columns() admitted at the time (73 of them),
 and the score is MAE, not the decision lift. The ridge re-test of the same
 family is ridge_retest.py in this folder.
 
-When the logged run was made (feat_redzone_eval.log, results in
+At the time this ran (feat_redzone_eval.log, results in
 reports/feat_redzone_results.csv), 2021 was MISSING from kicker_games.parquet:
-the nflverse kicking release has no 2021 rows. That gave 6 usable folds, not 7,
+the nflverse kicking release has no 2021 rows, and the build did not yet fill
+them from play-by-play. That gave 6 usable folds, not 7,
 and hit both arms of every comparison identically, so the pairing was
 unaffected. build_dataset.py now fills 2021 from play-by-play, so a rerun has 7
 folds and will not reproduce the logged numbers exactly.
@@ -110,7 +111,7 @@ def main() -> int:
             continue
         tr, te = df[df.season < s], df[df.season == s]
         if len(te) < 50:                      # a season absent from the data
-                                              # (2021, when the log was made)
+                                              # (2021, at the time this ran)
             print(f"  fold {s} skipped: {len(te)} games in the data", flush=True)
             continue
         print(f"  fold {s}: train {len(tr)}, test {len(te)}", flush=True)

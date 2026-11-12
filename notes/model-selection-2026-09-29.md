@@ -1,9 +1,61 @@
 # Why this model: the kicker ranker bake-off, 2026-09-29
 
-Corrected the same day after review. The first version of this note had two dead
-features in the shipped model, scored its outer folds with a noisy simulation, and
-put the challengers and the old baseline claims in one multiplicity family. All
-three are fixed below and every number here is from the corrected run.
+## Rerun of 2026-10-28
+
+Everything after this section is the record of the run of 2026-09-29, and its
+numbers are that run's. The bake-off was rerun on 2026-10-28 on the same data
+build as `backtest.py`'s tracked CSVs, with play-by-play for every season from
+2015. The tracked `reports/model_bakeoff_*.csv` are that rerun. From
+`reports/model_bakeoff_summary.csv`:
+
+- The ridge gains 0.427 points a week over a random start at R=2, 17.4% of the
+  oracle's 2.458 (0.432 below).
+- Ridge minus the implied total alone: +0.074 (week-block 95% CI +0.023 to
+  +0.124, p = 0.0036), ahead in 6 of 8 seasons (sign test p = 0.29). It loses
+  2019 by 0.126 and 2021 by 0.019.
+- The closest challenger is again the ridge plus an empirical-Bayes kicker
+  effect: +0.012 (95% CI -0.010 to +0.034, Holm p = 1.00), ahead in 7 of 8
+  seasons. It clears the fold rule and fails the significance rule. Nested
+  alpha: -0.005. No challenger is distinguishable from the ridge after Holm.
+
+What did not change: no challenger wins, and the ridge stays. Nearly all of the
+edge over the line is still 2022 onward: +0.005 in 2018 to 2021, +0.140 in 2022
+to 2025 (`model_bakeoff_slices.csv`).
+
+What changed:
+
+- **The line claim is weaker than the text below says.** With each season as
+  one observation, the t-test on the eight season differences gives +0.073,
+  p = 0.095, 95% CI -0.016 to +0.162 (Wilcoxon p = 0.11;
+  `reports/season_level_tests.csv`). The season-cluster bootstrap quoted below
+  as support resamples eight clusters by percentile, which is too narrow; on
+  the rerun it gives +0.002 to +0.137, p = 0.045, and it is not the test to
+  quote. The edge is clear week to week and suggestive, not established,
+  season to season.
+- **The baseline family is post hoc.** The family of two for the README's
+  claims was chosen after the first run (item 3 below). Under the first run's
+  single family of 18, the rerun's line comparison would get Holm p = 0.058
+  (16 x 0.0036).
+- **The fourth-down features are populated in every fold.** On 2026-09-29
+  `fourth_down.py` read whichever play-by-play seasons were cached, so the two
+  fourth-down features were missing in the early folds and median-imputed
+  there. The text below reads that as the features existing only from 2021 and
+  2022. `fourth_down.py` now fetches every season from 2015 and stops on a gap,
+  and on the rerun `prev_go_rate` keeps its sign in 8 of 8 folds (+0.050 per
+  sd).
+- **The compound model's probabilities are right on average only.** The
+  calibration table below compares pooled rates. Row by row, P(15+) barely
+  beats a constant at the base rate: Brier skill +0.001 (95% CI -0.004 to
+  +0.006), calibration slope 0.55, AUC 0.55 (`reports/calibration_summary.csv`).
+
+## The run of 2026-09-29
+
+This note was corrected on the day it was written. Its first version had two
+dead features in the shipped model, scored its outer folds with a noisy
+simulation, and put the challengers and the old baseline claims in one
+multiplicity family. The first two are fixed below. The third was handled by
+splitting the family after that first run, so the baseline family's Holm p is
+post hoc (item 3). Every number from here on is from the corrected run.
 
 ## The answer
 
@@ -22,13 +74,14 @@ hyperparameter, and coefficients whose main signs hold in 8 of 8 folds.
 
 The size of the prize is the caveat. The ridge beats ranking by the Vegas implied
 total alone by **0.079 points a week (95% CI +0.030 to +0.128, p = 0.001)**, about
-3% of what an oracle gets. That survives its own family's Holm correction (p =
-0.001) and a season-cluster bootstrap (CI +0.008 to +0.143, p = 0.028), but the
-ridge beats the line in only **6 of 8 seasons**, and a sign test cannot tell 6 of 8
+3% of what an oracle gets. That survives the Holm correction of its own family,
+which was set after the first run (p = 0.001), and a season-cluster bootstrap
+(CI +0.008 to +0.143, p = 0.028), but the ridge beats the line in only
+**6 of 8 seasons**, and a sign test cannot tell 6 of 8
 from a coin (p = 0.29). The honest read: a small edge that is consistent in the
 average and not yet established season by season.
 
-## What the reviewer found, and what changed
+## What changed between the first and the corrected run
 
 1. **Two of the 16 features were dead.** `is_indoor_certain` was 0 and
    `is_retractable` was 1 on every row. `features.roof_flags` looked for a
@@ -54,25 +107,31 @@ average and not yet established season by season.
    any roster size), so `backtest.py`, this bake-off and the board's published
    note all compute the same number. The self-check proves it against brute-force
    enumeration of every roster, with ties.
-3. **One Holm family mixed two questions.** The old run put the 14 challengers and
-   the four reference rows in one family of 18, so the pre-existing claim that the
-   ridge beats the line was penalised for questions asked after it and came out at
-   Holm p = 0.08. Now there are two families fixed in advance: the 14 challengers
-   against the ridge, and the two claims the README already made (ridge vs the
-   line, ridge vs a career average). The compound model and the constant are
-   reported unadjusted, as description.
+3. **One Holm family mixed two questions.** The first run put the 14 challengers
+   and the four reference rows in one family of 18, so the pre-existing claim that
+   the ridge beats the line was penalised for questions asked after it and came
+   out at Holm p = 0.081. After that result I split the correction into two
+   families: the 14 challengers against the ridge, and the two claims the README
+   already made (ridge vs the line, ridge vs a career average). The argument for
+   the split is defensible, but it was made after seeing the result, so the
+   baseline family's Holm p is post hoc. On this corrected run a single family
+   of 18 would have given the line Holm p = 0.016 (16 x 0.0010), so here the
+   verdict does not hang on the split; on the first run it did. The compound
+   model and the constant are reported unadjusted, as description.
 4. **141 weeks are not 141 independent draws.** The ridge's own lift runs from
    0.19 to 0.61 by season, so the week-block bootstrap overstates certainty about
    anything that varies by season. The baseline family now also gets a
    season-cluster bootstrap (whole seasons resampled) and a sign test across the
-   eight seasons. That is where the "6 of 8, p = 0.29" above comes from.
+   eight seasons. That is where the "6 of 8, p = 0.29" above comes from. With
+   eight clusters the percentile cluster bootstrap is too narrow; the section
+   at the top gives the season-level t-test instead.
 5. **"Knowable on Tuesday" was false for the most important feature.** The
    implied total, the total line and closeness come from nflverse closing lines.
    The board is valid for a lineup set close to kickoff, with the line as it stands
    then; read on Tuesday it uses an earlier line and should expect a little less
    than the backtest shows. `features.py` and `model.py` now say so.
 
-## Setup, fixed before the run
+## Setup
 
 - **Data.** 5,826 regular-season kicker-games, 2015 to 2026 week 3, built by
   `model.load()`. Test seasons 2018 to 2025 (2026 has three weeks and is excluded
@@ -90,7 +149,8 @@ average and not yet established season by season.
   reference rows reproduce its numbers exactly: ridge 0.4322, implied 0.3532,
   compound 0.3818, career 0.1797, constant 0.
 - **Win rule.** Holm-adjusted p < 0.05 against the shipped ridge at R=2 within the
-  challenger family (m = 14), a positive difference, and a higher R=2 lift in at
+  challenger family (m = 14, separated from the baselines after the first run;
+  item 3 above), a positive difference, and a higher R=2 lift in at
   least 6 of 8 seasons. The fold rule alone is weak (a coin wins 6 of 8 with
   probability 14.5%), which is why both are required.
 
@@ -119,7 +179,7 @@ prediction, 1.0 is ideal) only for models whose output is on the points scale.
 | within-week demeaned ridge | 0.4144 | 16.9% | 0.6050 | 0.166 | | | -0.0178 | [-0.034, -0.002] | 0.031 | 0.44 | 3 | no difference |
 | spline ridge (GAM-style) | 0.4118 | 16.8% | 0.6067 | 0.167 | 3.470 | 1.05 | -0.0203 | [-0.045, +0.004] | 0.098 | 1.00 | 3 | no difference |
 | LightGBM lambdarank | 0.3872 | 15.8% | 0.5626 | 0.156 | | | -0.0449 | [-0.092, +0.001] | 0.057 | 0.74 | 1 | no difference |
-| *baselines, Holm m = 2* | | | | | | | | | | | | |
+| *baselines, Holm m = 2, post hoc (item 3)* | | | | | | | | | | | | |
 | Vegas implied total alone | 0.3532 | 14.4% | 0.5137 | 0.143 | | | -0.0790 | [-0.128, -0.030] | 0.0010 | 0.0010 | 2 | ridge better |
 | kicker career average | 0.1797 | 7.3% | 0.2940 | 0.071 | 3.571 | 0.29 | -0.2524 | [-0.341, -0.161] | <0.0001 | <0.0001 | 0 | ridge better |
 | *descriptive, unadjusted* | | | | | | | | | | | | |
@@ -136,7 +196,7 @@ two to four times as wide.
 
 | test | ridge minus line | interval | p |
 |---|---|---|---|
-| week-block bootstrap, 141 weeks | +0.079 | [+0.030, +0.128] | 0.001 (Holm, m = 2: 0.001) |
+| week-block bootstrap, 141 weeks | +0.079 | [+0.030, +0.128] | 0.001 (Holm, m = 2, post hoc: 0.001) |
 | season-cluster bootstrap, 8 seasons | +0.079 | [+0.008, +0.143] | 0.028 |
 | sign test across seasons | 6 of 8 | | 0.29 |
 
@@ -243,7 +303,7 @@ Rank with the ridge, take probabilities from the compound model.
 The ridge's edge over the line lives in weeks 5+ (+0.096), where the lagged
 volume features have filled in; in weeks 1 to 4 it is +0.022. And the line alone
 got much worse in 2022 to 2025 (0.423 to 0.286) while the ridge did not move, so
-nearly all of the edge is recent: +0.012 in 2018 to 2021, +0.144 in 2022 to 2025.
+nearly all of the edge is recent: +0.012 in 2018 to 2021, +0.143 in 2022 to 2025.
 The early-week cells favour the GBM, but that is a slice read after the fact
 across 18 models, a lead and not a finding.
 
@@ -266,10 +326,12 @@ folds and how many folds keep that sign:
 The largest coefficients keep their sign in 8 of 8 folds and each has a stated
 mechanism: the offence's own implied points up, the opponent's down (game script),
 wind down, recent kicker output up. The fourth-down features only exist from 2021
-and 2022, so they are live in 3 and 4 folds. Among the models that tie, the ridge
-has the fewest moving parts: one fixed hyperparameter, no link function, no
-dispersion or power parameter, no dependence on the week's slate (the blend and
-the pairwise ranker both need it), and one coefficient per named feature.
+and 2022, so they are live in 3 and 4 folds. (That was a gap in this run's
+play-by-play cache, not in the data; see the section at the top.) Among the
+models that tie, the ridge has the fewest moving parts: one fixed
+hyperparameter, no link function, no dispersion or power parameter, no
+dependence on the week's slate (the blend and the pairwise ranker both need it),
+and one coefficient per named feature.
 
 ## Leakage register
 
@@ -280,7 +342,7 @@ Prediction moment: a lineup set close to kickoff, after the closing line.
 | market features are closing lines | timing | nflverse `spread_line`/`total_line` are closing; `predict_week.py` reads the current file | medium | the board is valid near kickoff; read earlier, every Vegas-driven candidate's absolute lift is optimistic, and none is favoured over the ridge |
 | shipped alpha = 100 was read off these test folds | tuning on test | METHOD.md says so | low | favours the reference; the nested ridge ties it anyway |
 | the 16 features were chosen after three families were rejected on these same folds | selection on test | METHOD.md feature table | low to medium | shared by every candidate, inflates absolute lift, not the ranking |
-| fourth-down features absent before 2021/2022 | population mismatch across eras | all-NaN in early folds, dropped by the imputer | low | slice table shows no era break for the ridge |
+| fourth-down features absent before 2021/2022 | population mismatch across eras | all-NaN in early folds, dropped by the imputer; a gap in the play-by-play cache, fixed since (top section) | low | slice table shows no era break for the ridge |
 | retractable roof open or closed | game-day decision | never set on an unplayed game | none now | both settings map to one "retractable" type; an unplayed game takes its type from a table built from played games only |
 
 All challengers' preprocessing is fit inside the training block, and no test-season
@@ -302,7 +364,7 @@ row enters tuning.
 5. **Nothing else on the model side.** Fourteen shapes of model on these features
    land within noise of the ridge. Further gains, if any, are in inputs.
 
-## The interview answer, in plain language
+## In plain language
 
 "I rank fantasy kickers with a ridge regression on 16 inputs that exist before
 kickoff: mostly the Vegas line, plus the offence's recent volume, the coach's
@@ -313,22 +375,23 @@ whose team Vegas expects to score most, it gains about 0.08 points a week. That 
 clear week to week, but it only wins 6 of 8 seasons, so I call it a small,
 consistent edge and not a big one. The real lesson is that most of a kicker's week
 is field goals, which are close to unpredictable, and the betting line already
-knows most of what can be known. A reviewer also caught two mistakes of mine: two
-features were constant because of a join bug, and I had been scoring with a noisy
-simulation. Fixing both left the conclusion where it was, which is what checking
-is for."
+knows most of what can be known. The first run also had two mistakes of mine in
+it: two features were constant because of a join bug, and I had been scoring
+with a noisy simulation. Fixing both left the choice of model where it was."
 
 ## Reproduce
 
 ```
-set OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=1
 python src/kicker_analysis/model_bakeoff.py --self-check   # offline, a few seconds
-python src/kicker_analysis/model_bakeoff.py --quick        # 3 folds, 1 inner fold, about 6 min
-python src/kicker_analysis/model_bakeoff.py                # the numbers above, about 20 min
+python src/kicker_analysis/model_bakeoff.py --quick        # 3 folds, 1 inner fold, a smoke test
+python src/kicker_analysis/model_bakeoff.py                # the full run: 148 s on 2026-10-28
 ```
 
 Seeds are fixed (bootstrap seed 0, LightGBM `deterministic=True`, one thread) and
-the lift is exact, so a rerun reproduces every number. Outputs:
+the lift is exact, so a rerun on the same inputs reproduces every number.
+`reports/data_manifest.json` records the inputs behind the tracked CSVs, which
+are the 2026-10-28 rerun, not the run described above. Outputs:
 `reports/model_bakeoff_summary.csv` (with a `family` column and the season-cluster
 and sign-test columns on the baseline rows), `_folds.csv`, `_params.csv` (every
 chosen hyperparameter per fold), `_calibration.csv`, `_slices.csv`,

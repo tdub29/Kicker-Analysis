@@ -24,14 +24,14 @@ Steps, in order, each reading what an earlier one wrote:
 
 figures reads the bake-off's CSVs as well as the backtest's, so the bake-off,
 when it runs, runs before it. It is opt-in for two reasons. It is the slow step:
-it tunes and refits 14 challengers over 8 season-forward folds, and in one full
-run on a 4-CPU Linux machine with OMP_NUM_THREADS=1 it took 135 s where the
-other six steps took 33 s together. And it is a model-selection study, not part
-of producing a board. Without --bakeoff, figures draws from the bake-off CSVs
-already tracked in reports/, and its season chart's footnote says so when they
-came from a different data build than the backtest's. score_boards runs before
-predict_week so the scorecard describes the published boards as they stood
-before this run wrote or replaced any.
+it tunes and refits 14 challengers over 8 season-forward folds, and it prints
+its own elapsed time when it finishes (148 s in the 2026-10-28 run). And it is
+a model-selection study, not part of producing a board. Without --bakeoff,
+figures draws from the bake-off CSVs already tracked in reports/, and its
+season chart's footnote says so when they came from a different data build
+than the backtest's. score_boards runs before predict_week so the scorecard
+describes the published boards as they stood before this run wrote or
+replaced any.
 
 It stops at the first step that exits non-zero. Carrying on would be worse than
 failing: a board trained after a failed build is a board trained on whatever the
@@ -40,8 +40,9 @@ cache last held, and it looks exactly like a current one.
 The weekly board is a record, so predict_week will not replace an existing
 reports/week_<season>_<week>_kickers.csv; it says so and exits 0, which lets a
 second run in the same week finish without touching it. `--force` is passed
-through to replace it. The site payload is written only where KICKER_SITE_JS
-points, and that variable reaches predict_week unchanged from this environment.
+through to replace it. This script passes no `--site-out`, so the site payload
+is written only where KICKER_SITE_JS points, and only for the upcoming week;
+that variable reaches predict_week unchanged from this environment.
 
 `--self-check` runs every module's own `--self-check` instead: offline, no data,
 and it reports every failure rather than stopping at the first. A module counts

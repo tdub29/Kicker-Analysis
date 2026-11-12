@@ -4,9 +4,9 @@
     {
       "name": "games.csv",
       "url": "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv",
-      "sha256": "088563a4ed2f0f7ffc1d5c447019946ab3e7a894e870da8bae97193805568d09",
-      "bytes": 2186537,
-      "fetched_utc": "2026-10-26T05:24:21Z",
+      "sha256": "417c33dac4dd1871b5b18e6c8909a682e972b5f7359b7e12b7af70c6650ce450",
+      "bytes": 2186991,
+      "fetched_utc": "2026-10-28T01:18:39Z",
       "last_modified": null
     },
     {
@@ -14,8 +14,8 @@
       "url": "https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats_kicking.parquet",
       "sha256": "ccd2fec2e04a67bf6e1c26a94bc1c9e99c3991f996e6f6ae496c0f9049779ff8",
       "bytes": 245234,
-      "fetched_utc": "2026-10-26T05:24:21Z",
-      "last_modified": null
+      "fetched_utc": "2026-10-28T01:18:39Z",
+      "last_modified": "Wed, 07 May 2025 08:22:03 GMT"
     },
     {
       "name": "pbp_2015.parquet",
@@ -108,10 +108,10 @@
     {
       "name": "pbp_2026.parquet",
       "url": "https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_2026.parquet",
-      "sha256": "5ef0ad852c8607b5f385d54af60165f83d752abaf9935df41ba927f33633204a",
-      "bytes": 7903087,
-      "fetched_utc": "2026-10-26T05:24:22Z",
-      "last_modified": null
+      "sha256": "e52903f452ff02fe5ad88436fac398b36df9c89c2b1bf8c2df25d7e510abdaea",
+      "bytes": 7976267,
+      "fetched_utc": "2026-10-28T01:18:42Z",
+      "last_modified": "Tue, 27 Oct 2026 15:19:48 GMT"
     }
   ]
 }

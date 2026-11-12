@@ -90,7 +90,7 @@ warnings.filterwarnings("ignore")
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 from kicker_analysis import feat_drives, feat_legstadium, feat_redzone  # noqa: E402
-from kicker_analysis.backtest import (FIRST_TEST, MIN_WEEKS, _pick_probs,  # noqa: E402
+from kicker_analysis.backtest import (FIRST_TEST, LAST_TEST, MIN_WEEKS, _pick_probs,  # noqa: E402
                                       boot_lift, decision, rho)
 from kicker_analysis.features import check_roof  # noqa: E402
 from kicker_analysis.model import FEATURES, RidgeRanker, load  # noqa: E402
@@ -199,7 +199,7 @@ def shuffle_family(df: pd.DataFrame, cols: list[str], draw: int,
 def test_seasons(df: pd.DataFrame) -> list[int]:
     """backtest.py's fold rule, so the baseline lines up with its ridge row."""
     return [int(s) for s in sorted(df.season.unique())
-            if s >= FIRST_TEST and df[df.season == s].week.nunique() >= MIN_WEEKS]
+            if FIRST_TEST <= s <= LAST_TEST and df[df.season == s].week.nunique() >= MIN_WEEKS]
 
 
 def season_forward(df: pd.DataFrame, features: list[str],

@@ -46,7 +46,7 @@ The same run writes the evidence for the other claims the documents make:
       the reference row).
   variance_decomposition.csv
       var(points) = var(FG points) + var(PAT points) + 2 cov, over every
-      modelling row (regular season, 2015 to the current season).
+      modelling row (regular season, 2015 through LAST_TEST).
   season_level_tests.csv
       Each test season (eight in the tracked run) is one observation of the
       edge, however many weeks it contains. Per-season mean differences in
@@ -105,6 +105,10 @@ from kicker_analysis.model import (CompoundKickerModel, RidgeRanker, FEATURES,  
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "reports"
 FIRST_TEST = 2018
+# The backtest is frozen at 2018-2025. 2026 is scored prospectively, from the
+# boards published before each week (score_boards.py), so it never becomes a
+# fold here and the tracked numbers do not move while the season is played.
+LAST_TEST = 2025
 MIN_WEEKS = 8
 SEED = 0
 N_BOOT = 10000
@@ -497,7 +501,7 @@ def calibration(P: pd.DataFrame, base_rate: dict, n: int = N_BOOT,
 def main() -> int:
     df = load(processed=ROOT / "data" / "processed")
     seasons = sorted(df.season.unique())
-    tests = [s for s in seasons if s >= FIRST_TEST
+    tests = [s for s in seasons if FIRST_TEST <= s <= LAST_TEST
              and df[df.season == s].week.nunique() >= MIN_WEEKS]
     check_roof(df)
     live = [f for f in FEATURES if df[f].std() > 0]
@@ -582,10 +586,11 @@ def main() -> int:
           f"training-season mean, with a week-block 95% interval:")
     print(skill.round(4).to_string(index=False))
 
-    fg_all, pat_all = component_points(df)
-    vd = variance_decomposition(fg_all, pat_all, df.fantasy_points)
-    print(f"\nVariance of weekly points, {len(df):,} kicker-games "
-          f"{int(seasons[0])}-{int(seasons[-1])}:")
+    hist = df[df.season <= LAST_TEST]
+    fg_all, pat_all = component_points(hist)
+    vd = variance_decomposition(fg_all, pat_all, hist.fantasy_points)
+    print(f"\nVariance of weekly points, {len(hist):,} kicker-games "
+          f"{int(hist.season.min())}-{int(hist.season.max())}:")
     print(vd.round(4).to_string(index=False))
 
     cal, rel = calibration(P, base_rate)

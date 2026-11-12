@@ -52,10 +52,10 @@ comes from a league distance curve also fit on prior seasons only:
 The +200 in the denominator is the shrinkage and it is deliberately harsh. It
 means a venue needs roughly 200 prior attempts, about eight home seasons, before
 its index reads at half strength. That is what handles Mexico City, London,
-Sao Paulo, Munich and the rest without an exclusion list: MEX00 carries about 20
-prior attempts, so a +3 make surplus there reports as +0.013 rather than +0.150.
-Nothing is dropped by name, and the same rule shrinks a new stadium's first
-season too.
+Sao Paulo, Munich and the rest without an exclusion list: a venue with 20 prior
+attempts and 3 more makes than expected reads 3 / 220 = +0.014 rather than
+3 / 20 = +0.150, and MEX00 has fewer prior attempts than that. Nothing is
+dropped by name, and the same rule shrinks a new stadium's first season too.
 
 VERIFIED (the first three by self_check):
   * every feature is a function of games strictly before the row's own kickoff.
@@ -71,7 +71,8 @@ VERIFIED (the first three by self_check):
     alternative (dropping it) inflates the make rate: by about 1.6 percentage
     points over every 2015-2026 attempt in the play-by-play, from about 1.1
     inside 40 yards to about 2.1 from 50 and beyond, where more kicks are
-    blocked (measured 2026-10-26).
+    blocked (measured on the play-by-play directly, 2026-10-28 build; no
+    committed script prints it).
 
 The first evaluation, experiments/feature_families/feat_legstadium_eval.py,
 added these columns to the 73-column LightGBM of the time. It had 6 folds, not

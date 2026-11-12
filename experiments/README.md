@@ -28,8 +28,10 @@ standardisation, alpha 100, nothing retuned), and three scores: pooled MAE,
 within-week Spearman (`backtest.rho`) and the exact R=2 decision lift
 (`backtest.decision`). Arms are the 16 features alone, plus each family, plus all
 three. The family tables are rebuilt from the play-by-play cache on every run
-and attached with a join that must neither add nor drop rows; all three match
-every modelling row.
+and attached with a left join that must neither add nor drop rows. On the test
+rows the red-zone and drives columns are fully populated, and the leg/stadium
+columns and all three together are 98.2% and 99.6% non-missing (the CSV's
+`coverage` column).
 
 **Two controls.** Adding columns moves the metrics even when the columns carry
 nothing, so each family is also scored against two matched controls, 50 seeded
@@ -134,7 +136,7 @@ release has no 2021 rows), so each run had 6 folds. `build_dataset.py` now fills
 2021 from play-by-play, and the current build admits 69 columns to
 `feature_columns()`, not 73. The saved logs and CSVs are from the 6-fold runs,
 so a rerun gives 7 folds, a different baseline and different numbers. All four
-scripts run to completion on the current build (`feat_legstadium_eval.py`
+scripts ran to completion on the build of 2026-10-26 (`feat_legstadium_eval.py`
 reports the day-of `wind_outdoor` column as absent rather than stopping on it).
 
 | script | exercises | evidence | result |
@@ -157,8 +159,8 @@ python experiments/feature_families/ridge_retest.py --self-check  # offline, wri
 ```
 
 `ridge_retest.py` rebuilds the three family tables itself and takes about two
-and a half minutes on one thread (147 and 152 seconds in the two runs behind
-the tracked CSV). `--draws N` changes the number of draws per control.
+minutes on one thread (131 seconds in the run behind the tracked CSV).
+`--draws N` changes the number of draws per control.
 
 The LightGBM scripts read the family tables from `data/processed/`, so build
 those first:
@@ -190,3 +192,7 @@ ridge under the same season-forward protocol as `backtest.py`. It writes
 `reports/fifty_plus_rates.csv`, `fifty_plus_variance.csv` and
 `fifty_plus_lift.csv`. The folder's own `README.md` gives the protocol, the
 results and how to run it, and `fifty_plus.log` is the run's stdout.
+
+The result: it adds nothing detectable. The shrunk prior-season rate moves the
+ridge's lift from 0.4272 to 0.4295, +0.0023 points a week (95% CI -0.0074 to
++0.0121, p = 0.64), and wins 4 of 8 test seasons. It is not in the model.

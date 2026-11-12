@@ -40,34 +40,41 @@ Lagging: every rate here describes a finished game, so `shift(1)` runs on the
 raw per-game COUNTS inside the team group before any window. Rates are then
 built as a ratio of the two lagged sums, never as a mean of per-game rates: a
 game with one trip and a game with six trips are not equally informative, and
-averaging their rates pretends they are. Measured over 2015-2025 team-seasons
-the two differ by 0.027 in red-zone TD rate against an across-team spread of
-0.079, so the wrong choice costs a third of a standard deviation.
+averaging their rates pretends they are. Measured over 2015-2025 regular-season
+team-seasons the two differ by 0.027 in red-zone TD rate on average, against an
+across-team standard deviation of 0.079, so the wrong choice costs about a third
+of a standard deviation.
 
 Verified before shipping:
-  * trips per team-game 2015-2026 average 3.34, red-zone TD rate 0.563 and
-    red-zone FG-attempt rate 0.323, with 2.17 inside-10 trips a game at a 0.668
-    TD rate. The league's published red-zone TD rate sits in the mid-50s, so the
-    drive identification is not silently double counting or dropping drives.
+  * build() prints the raw league numbers: red-zone trips per team-game, the
+    red-zone TD and FG-attempt rates, and the same inside the 10. Its red-zone
+    TD rate lands in the mid-50s percent, where the league's published rate
+    sits, so the drive identification is not silently double counting or
+    dropping drives.
   * every relocated franchise code is collapsed, so LA/LAC/LV histories are
     continuous instead of starting at the move.
   * the self-check below fails if `shift(1)` is dropped, if rates are averaged
     instead of pooled, or if a PAT is allowed to create a trip.
-  * PERSISTENCE, checked before trusting any of it: year over year 2016-2025 a
-    team's red-zone trips per game carry at r = 0.32, but its red-zone TD RATE
-    carries at r = 0.10. The volume half of this mechanism is a real team
-    property; the efficiency half is very close to noise. That is a reason to
-    doubt the composite before it is fitted, not after, and the evaluation
-    bears it out.
+  * PERSISTENCE, checked before trusting any of it: year over year 2016-2025,
+    regular season, a team's red-zone trips per game carry at r = 0.32, but its
+    red-zone TD RATE carries at r = 0.10. The volume half of this mechanism is a
+    real team property; the efficiency half is very close to noise. That is a
+    reason to doubt the composite before it is fitted, not after, and the
+    evaluation bears it out.
+
+  The pooled-versus-averaged gap above and these two correlations were
+  computed on the play-by-play directly with this module's drive table, and
+  they hold on the 2026-10-28 build; no committed script prints them.
 
 RESULT, stated up front so nobody re-derives it: THESE FEATURES DO NOT HELP.
 Season-forward over 2019-2025, added to the 73-column LightGBM of the time,
 pooled MAE goes 3.6185 -> 3.5708 with all 27 columns, which looks like a 1.3%
 win at p=0.054. It is not one. The same harness given the SAME 27 columns with
-their values SHUFFLED gains -0.020, -0.036 and +0.002 on three seeds, averaging
--0.018, so most of the nominal gain is what this LightGBM does when handed 27
-more columns of anything. The real-minus-shuffled margin of 0.030 MAE sits
-inside the 0.038 spread of the shuffle draws.
+their values SHUFFLED moves pooled MAE by -0.019, -0.036 and +0.002 on three
+seeds, -0.018 on average, so much of the nominal gain is what this LightGBM
+does when handed 27 more columns of anything. The real-minus-shuffled margin of
+0.030 MAE sits inside the 0.038 spread of the shuffle draws
+(experiments/feature_families/feat_redzone_control.log).
 
 The composite specifically loses the question it was asked: rz_exp_fg_* alone
 moves MAE by -0.0098 (p=0.41) and the two raw columns it is built from move it
@@ -76,11 +83,12 @@ smaller than the shuffled-column control. The composite does not beat the raw
 pair; neither beats noise.
 
 Why, in football terms: the model already had this. Lagged team points and the
-market's implied total are cheaper proxies for the volume half (r = 0.68 and
-0.53 against rz_trips_pg_l16), lagged team FG attempts already carries the
-stall half (r = 0.46 against rz_fg_rate_l16), and the efficiency half is not
-forecastable anyway at r = 0.10 year over year. The mechanism is real; the
-incremental information is not.
+market's implied total are cheaper proxies for the volume half (both correlate
+clearly with rz_trips_pg_l16), lagged team FG attempts already carries the
+stall half (it correlates with rz_fg_rate_l16), and the efficiency half is not
+forecastable anyway at r = 0.10 year over year. Those overlaps were measured on
+the play-by-play directly; no committed script prints them. The mechanism is
+real; the incremental information is not.
 
 The evaluation has 6 folds, not 7: it ran while 2021 was missing from
 kicker_games.parquet, a gap build_dataset.py has since filled from play-by-play,
