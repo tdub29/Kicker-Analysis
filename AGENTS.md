@@ -7,13 +7,14 @@ Read README.md and METHOD.md before changes. Preserve season-forward validation,
 <!-- SPARE-LAPTOP:END -->
 
 <!-- AGENT-COMPLETION:BEGIN (managed by .agents/scripts/sync-orchestration-sections.ps1) -->
-## Agent-owned completion
+## Agent completion
 
-Overrides generic skill menus. Specific user and safety boundaries still apply.
+Overrides generic skill defaults; preserves user and safety boundaries.
 
-- **Agents own completion and Git.** Finish authorized work: scoped commit, push, PR and merge to Trevor's remotes as applicable. Preserve other writers, permitted checks and existing gates. Never hand routine Git back. No unrequested Trevor Apps QA.
+- **Agents own completion and Git.** Finish authorized work: scoped commit, push, PR and merge to Trevor's remotes. Preserve other writers, permitted checks and gates. Never hand Git back. No unrequested Trevor Apps QA.
+- **Models.** Codex defaults to Sol; Astra only for certain task-specific added value, otherwise Sol. Other engines: more efficient model only with clear equal effectiveness; otherwise frontier. No subscription API list-price estimates or invented cash budgets. Preserve actual provider/user limits and metered-service permissions.
 - **Delegate technical review.** Get required independent review, fix findings and finish. Subagents cannot grant user-only permission, bypass auth/protection/approval/leases/frozen scope or waive execution-delegation limits. Finish ungated work.
-- **Chat is not completion.** Never assume Trevor read, accepted or completed an action mentioned once. Do agent-executable steps now. Keep human-only actions in the existing task/checkpoint or blocker record: owner, exact input and next step. On relevant status/resume, surface unresolved actions first until resolved or superseded; acknowledgment alone is not completion. Silence is not approval. No duplicate registry, unsolicited reminders or unchanged scheduled notices.
+- **Chat is not completion.** Never assume Trevor read, accepted or completed an action mentioned once. Do agent work now. Track human-only actions in existing task/checkpoint: owner, exact input, next step. Surface unresolved actions first on relevant status/resume until resolved or superseded; acknowledgment alone is not completion. Silence is not approval. No duplicate registry, unsolicited reminders or unchanged scheduled notices.
 <!-- AGENT-COMPLETION:END -->
 
 <!-- ALWAYS-ON-DISCIPLINES:BEGIN (managed by .agents/scripts/sync-orchestration-sections.ps1 - edit the block there, not here) -->
@@ -29,7 +30,7 @@ These three run in every session here, whatever the task.
 <!-- TELEGRAM-QUEUE:BEGIN (managed by .agents/scripts/sync-orchestration-sections.ps1 - edit the block there, not here) -->
 ## Queueing work for Telegram / Taco
 
-"Queue this", "make a task", "tg/taco task", "add it to the queue", "save this for later" all mean ONE thing: an **Inbox task in the shared dashboard queue** (`cursor-dashboard/agent-os-state.json`, shared by every project), never a TODO in this repo or a note. The daemon is down until Trevor says otherwise, so do not probe it: one command writes the brief, adds the task to the file directly, and confirms it on a re-read:
+"Queue this", "make a task", "tg/taco task", "add it to the queue", "save this for later" mean an **Inbox task in the shared dashboard queue** (`cursor-dashboard/agent-os-state.json`), never a local TODO or note. Daemon stays stopped; do not probe without Trevor authorizing. Command writes brief, adds task, confirms re-read:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\TrevorWhite\Downloads\Big Projects\.agents\scripts\add-dashboard-task.ps1" -Title '...' -Project 'kicker-analysis' -Owner ops -Brief '...'
@@ -41,14 +42,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\TrevorWhite\Downlo
 <!-- ORCHESTRATION-DEPTH:BEGIN (managed by .agents/scripts/sync-orchestration-sections.ps1 - edit the table there, not here) -->
 ## Orchestration & loops - execution depth
 
-Choose **solo**, **subagents**, **workflow** or **loop** per [`../.agents/rules/orchestration-and-loops.md`](../.agents/rules/orchestration-and-loops.md) (reference: [`../.agents/memory/reference_dynamic-workflows.md`](../.agents/memory/reference_dynamic-workflows.md)). Separate doing from judging; state model tier, reasoning effort and cost before spawning. Loops need a hard stop and per-iteration checkpoint. Gates must be able to take DONE back.
+Choose **solo**, **subagents**, **workflow** or **loop** per [`../.agents/rules/orchestration-and-loops.md`](../.agents/rules/orchestration-and-loops.md) (reference: [`../.agents/memory/reference_dynamic-workflows.md`](../.agents/memory/reference_dynamic-workflows.md)). Separate doing from judging; state model tier, reasoning effort and relevant resource limits before spawning. Loops need a hard stop and per-iteration checkpoint. Gates must be able to take DONE back.
 
-**Anything needing judgement gets a skill and a second pair of eyes. Working from memory is the failure mode here.**
+**Judgment needs a fitting skill and independent review.**
 
 - **Use a fitting skill before starting.** If unknown, use `scout-skills` (`mid` | `high` | `max`). Fill real gaps with complete local bundles.
 - **Independent verdicts.** Rankings, design choices, exploitability and numbers reaching people need a reviewer who did not produce them.
 - **Breadth gets workers.** Three or more independent shards, each with its own proof: one worker per shard, then deterministic synthesis. Count actual work, including bundle fetch, mirrors and hashes, not just items.
-- **Trivial work stays solo.** One-file mechanical edits need no worker. Cost gates still apply; judgement and breadth determine shape.
+- **Trivial work stays solo.** Cost gates still apply.
 
 **Unattended Claude dispatch must prove progress.** New authorized launches use explicit `--permission-mode bypassPermissions`, owning project cwd and a permitted write location. Before launch or recovery, inspect saved permissions plus registered and detached runtime owners. Preserve existing session permissions; never reroute or restart around a real approval/isolation gate.
 
