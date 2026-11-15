@@ -1,13 +1,13 @@
 # Kicker decision research charter, 2026-11-15
 
-Status: revision 2 after the MAX book-workflow repair. Model edits are paused by Trevor. Earlier scoring/simulator edits remain unaccepted; no new model edits, fits, backtests or publication are authorized by this scout repair. Prior 2018-2025 results are development evidence, not untouched confirmation. This charter does not assert a predictive edge.
+Status: revision 3. Trevor explicitly resumed implementation after the MAX repair and requested coach fourth-down and 55+ yard preparation. The executable research protocol is `kicker-rebuild-protocol-20261115.md`. Earlier scoring/simulator edits remain unaccepted until review. Prior 2018-2025 results are development evidence, not untouched confirmation. This charter does not assert a predictive edge.
 
 ## Method and MAX disposition
 `predictive-modeling` supplies the sequence: Provost framing, Huyen data/features/evaluation, then domain-specific development and impact evaluation. `sports-modeling-doctrine` supplements that sequence. The earlier dismissal of the router as over-routing is withdrawn. Full local book workflows, not just frontmatter, were read during the repaired scout.
 
 The fresh `kicker-decision-forecasting` verifier failed its first primary-source fetch with `Unknown tool`. No retry or source-clearance claim follows. The draft is CUT, not installed, and is not an implementation authority. Existing book/domain skills cover the methodological requirements below. Platform semantics, historical availability and forecast-weather vintages remain primary-evidence tasks; a new skill cannot manufacture them. Keep the draft and incomplete review only as rejected research history.
 
-The repaired body/reference search, full-read inventory and source limitations are in `.agents/artifacts/kicker-redesign-20261115/scout/book-frameworks-rescout.md` and `fresh-source-verification.md`. No model work resumes in this revision.
+The repaired body/reference search, full-read inventory and source limitations are in `.agents/artifacts/kicker-redesign-20261115/scout/book-frameworks-rescout.md` and `fresh-source-verification.md`. The unverified skill stays cut; resumed work applies the installed book workflows.
 
 ## Question and action
 For a league that starts K, does a forecast help choose between the rostered kicker and actually available replacements, under that league's scoring, better than keeping the current kicker, sourced Sleeper points, or highest implied team total?
@@ -74,7 +74,7 @@ Practical promotion bar: corrected candidate gains at least 0.25 realized points
 Prospective confirmation: freeze recipe and publish immutable exact input/scoring/cutoff/payload identity before lock. Record every eligible decision over at least 17 distinct NFL weeks; no stopping when results first look favorable. Seventeen weeks is a minimum collection rule, not proof of adequate independent information. Freeze the interval/resampling design after the actual dependence structure and available seasons are known, before prospective scoring starts. Require a positive lower 95% bound against the strongest reference for a superiority claim; inadequate independent clusters mean inconclusive. Do not claim season generalization from a single season. Keep/Simplify/Retire may honestly choose a transparent baseline while research remains experimental.
 
 ## Order after the scout repair
-1. Keep model edits paused. MAX draft is cut; no unverified guidance is installed.
+1. MAX draft is cut; no unverified guidance is installed. Implementation resumed only after Trevor's explicit continuation.
 2. Before resumed implementation, finish target/gray-zone contracts, the DQ cause/prevention catalog and source-availability register. Reconcile raw-to-processed scoring/population defects first.
 3. Freeze executable baseline/candidate specifications and the complete experiment ledger before new fits. Apply comparable development effort and preserve losing runs.
 4. Run authorized chronological development comparisons and feasible-policy evaluation only where availability evidence supports it. Choose keep/simplify/retire without forcing novelty or a preferred player order.
