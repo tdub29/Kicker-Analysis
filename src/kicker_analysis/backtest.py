@@ -1,85 +1,10 @@
-"""Season-forward backtest: the one command behind the headline numbers.
+"""Legacy diagnostic backtest, with corrected shared league scoring.
 
-For every test season from 2018 the models are fit on earlier seasons only and
-scored on that season, so nothing from the league's future is ever in a fit.
-
-Scored on the decision, not on the residual. MAE on this target is dominated by
-irreducible week-to-week noise and squeezes real differences into the second
-decimal, so it is kept and never sorted on. What a manager actually does is
-start one kicker out of the two or three on hand, so that is what is measured
-(reports/backtest_summary.csv):
-
-  lift_rN    points per week gained by starting the method's favourite of N
-             kickers drawn at random from the week, against starting a random
-             one of the N.
-  share      that lift as a fraction of the oracle's, so the ceiling is visible.
-  ceiling    how often the pick returns a 15-point week. A random pick does it
-             8.4% of the time and every non-constant ranking here does better,
-             the ridge most (9.6%). Ranking by the compound model's expected
-             points does not push it below random, and ranking by its P(y>=15)
-             instead does not raise it (9.2% either way), so a separate
-             ceiling board is not justified by this backtest.
-  rho        within-week Spearman, the ordering the lift comes from.
-  MAE        the compound model's, for reference.
-
-Every lift is computed EXACTLY. The expectation over every N-subset of a week
-has a closed form (_pick_probs), so no comparison carries simulation noise and
-a constant scores zero up to floating-point rounding.
-
-Intervals are a week-block bootstrap. Weeks are the unit because rows inside
-one share a slate, a weather system and a set of opponents.
-
-The same run writes the evidence for the other claims the documents make:
-
-  component_skill.csv
-      Fantasy points are FG points plus PAT points, and the design argument is
-      about which half can be forecast. For FG attempts, PAT attempts, FG
-      points, PAT points and total points: out-of-sample R-squared against the
-      TRAINING seasons' mean (1 - SSE / SSE of that mean, so 0 is "no better than
-      the average you already had" and below 0 is worse), with a week-block
-      bootstrap interval, and the within-week Spearman (rho below: each week's
-      Spearman, averaged over weeks). Three forecasts per target: the shipped
-      compound model (count_stage: its LightGBM count stages for the attempt
-      targets, the means of its law for the points targets, see
-      fold_components), the ridge that orders the board refit on that target
-      (ridge16), and the training mean itself (R-squared 0 by construction,
-      the reference row).
-  variance_decomposition.csv
-      var(points) = var(FG points) + var(PAT points) + 2 cov, over every
-      modelling row (regular season, 2015 through LAST_TEST).
-  season_level_tests.csv
-      Each test season (eight in the tracked run) is one observation of the
-      edge, however many weeks it contains. Per-season mean differences in
-      R=2 lift get a one-sample t-test (df = seasons - 1) with its interval, a
-      Wilcoxon signed-rank test and a sign test. The percentile season-cluster
-      bootstrap is reported beside them for transparency only: with eight
-      clusters it is too narrow, and is not the test to quote.
-  calibration_summary.csv, calibration_reliability.csv
-      Matching the average rate is necessary and nowhere near sufficient: a
-      constant at the training base rate does it too. So for P(y >= 8, 10, 12,
-      15): Brier score against that constant (Brier skill, week-block interval),
-      the logistic calibration slope (1 is ideal; below 1 means the predictions
-      are spread wider than the outcomes support), AUC, and a ten-bin
-      reliability table with Wilson intervals.
-
-What the run behind the tracked CSVs says, in brief. FG attempts are close to
-unforecastable from these features: out-of-sample R-squared +0.003 for the
-count stage (its interval includes 0) and +0.007 for ridge16, within-week
-Spearman 0.07 and 0.08. PAT attempts carry real skill, R-squared 0.13 and
-Spearman 0.35 for both. FG points carry 102% of the variance of weekly points,
-PAT points 10%, and twice their covariance -12%. Averaged by season, the
-ridge's edge over the implied total is +0.073 points a week with t-test p 0.095
-on 7 df. P(y>=15) matches the realised rate on average, but its Brier skill
-against the training base rate is 0.001 (interval includes 0), its AUC 0.55
-and its calibration slope 0.55.
-
-Before anything is fit, the inputs are checked: the roof flags vary
-(features.check_roof), all 16 features vary, and every feature is at least 85%
-non-missing in every season the folds use, prev_* features excepted in the
-first (check_coverage).
-
-    python src/kicker_analysis/backtest.py               # full run, writes reports/
-    python src/kicker_analysis/backtest.py --self-check  # offline, toy data, writes nothing
+Use evaluate_rebuild.py and its frozen research protocol for the finite rebuild
+comparison. Random observed pairs do not reconstruct actual roster decisions.
+2018-2025 seasons have been repeatedly inspected and are development evidence.
+Earlier tracked CSV claims concern prior source/model versions, not this run.
+Output requires a separate --out-dir so original research reports stay intact.
 """
 from __future__ import annotations
 
@@ -105,9 +30,6 @@ from kicker_analysis.model import (CompoundKickerModel, RidgeRanker, FEATURES,  
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "reports"
 FIRST_TEST = 2018
-# The backtest is frozen at 2018-2025. 2026 is scored prospectively, from the
-# boards published before each week (score_boards.py), so it never becomes a
-# fold here and the tracked numbers do not move while the season is played.
 LAST_TEST = 2025
 MIN_WEEKS = 8
 SEED = 0
@@ -270,27 +192,22 @@ def block_mean(blocks: np.ndarray, x: np.ndarray, n: int = N_BOOT) -> dict:
     return {"mean": float(sx.sum() / cnt.sum()), "lo": float(lo), "hi": float(hi)}
 
 
-def component_points(frame: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+def component_points(frame: pd.DataFrame, scoring=None) -> tuple[np.ndarray, np.ndarray]:
     """FG points and PAT points per row, by the scoring rule. A miss scores 0."""
-    fg = (PTS_SHORT * frame[["fg_made_0_19", "fg_made_20_29", "fg_made_30_39"]].sum(axis=1)
-          + PTS_MID * frame["fg_made_40_49"]
-          + PTS_LONG * frame[["fg_made_50_59", "fg_made_60_"]].sum(axis=1))
-    return fg.to_numpy(float), (PTS_PAT * frame["pat_made"]).to_numpy(float)
+    from kicker_analysis.scoring import BASE_SCORING
+    scoring = scoring or BASE_SCORING
+    total = scoring.points(frame)
+    pat = scoring.pat_made * frame.pat_made
+    if scoring.pat_missed:
+        pat = pat + scoring.pat_missed * (frame.pat_missed + frame.pat_blocked)
+    return (total - pat).to_numpy(float), pat.to_numpy(float)
 
 
 def fold_components(tr: pd.DataFrame, te: pd.DataFrame, pred: pd.DataFrame,
-                    ridge: np.ndarray) -> pd.DataFrame:
-    """One fold's realised components and each forecast of them, row-aligned with te.
-
-    count_stage is the shipped compound model. Its fg_att and pat_att are the
-    two LightGBM count stages; its points are the law's mean E[y]; its PAT points
-    are its expected PAT attempts, because the law scores every PAT attempt as a
-    point; its FG points are E[y] less that, so they carry the Monte Carlo noise
-    of E[y]. ridge16 is RidgeRanker, the board's ordering model, refit with the
-    component as its target (for points it IS the board's ridge).
-    """
-    fg_tr, pat_tr = component_points(tr)
-    fg_te, pat_te = component_points(te)
+                    ridge: np.ndarray, scoring=None) -> pd.DataFrame:
+    """Aligned actual and expected FG/PAT points under shared league scoring."""
+    fg_tr, pat_tr = component_points(tr, scoring)
+    fg_te, pat_te = component_points(te, scoring)
     train = {"fg_att": tr.fg_att.to_numpy(float), "pat_att": tr.pat_att.to_numpy(float),
              "fg_points": fg_tr, "pat_points": pat_tr,
              "points": tr.fantasy_points.to_numpy(float)}
@@ -299,8 +216,8 @@ def fold_components(tr: pd.DataFrame, te: pd.DataFrame, pred: pd.DataFrame,
             "points": te.fantasy_points.to_numpy(float)}
     exp_pat = pred.exp_pat_att.to_numpy(float)
     count = {"fg_att": pred.exp_fg_att.to_numpy(float), "pat_att": exp_pat,
-             "fg_points": pred.exp_points.to_numpy(float) - PTS_PAT * exp_pat,
-             "pat_points": PTS_PAT * exp_pat, "points": pred.exp_points.to_numpy(float)}
+             "fg_points": pred.exp_fg_points.to_numpy(float),
+             "pat_points": pred.exp_pat_points.to_numpy(float), "points": pred.exp_points.to_numpy(float)}
     c = pd.DataFrame({"season": te.season.to_numpy(), "week": te.week.to_numpy()})
     for t in TARGETS:
         c[t] = test[t]
@@ -498,8 +415,10 @@ def calibration(P: pd.DataFrame, base_rate: dict, n: int = N_BOOT,
 
 # ------------------------------------------------------------------------ run
 
-def main() -> int:
-    df = load(processed=ROOT / "data" / "processed")
+def main(out_dir: pathlib.Path, processed: pathlib.Path | None = None, scoring=None) -> int:
+    from kicker_analysis.scoring import BASE_SCORING
+    scoring = scoring or BASE_SCORING
+    df = load(processed=processed or ROOT / "data" / "processed", scoring=scoring)
     seasons = sorted(df.season.unique())
     tests = [s for s in seasons if FIRST_TEST <= s <= LAST_TEST
              and df[df.season == s].week.nunique() >= MIN_WEEKS]
@@ -520,7 +439,7 @@ def main() -> int:
     out, parts, base_rate = [], [], {}
     for s in tests:
         tr, te = df[df.season < s], df[df.season == s]
-        pred = CompoundKickerModel().fit(tr).predict(te)
+        pred = CompoundKickerModel(scoring=scoring).fit(tr).predict(te)
         # The ridge is what ORDERS the published board, so it is the headline row.
         ridge = RidgeRanker().fit(tr).predict(te)
         med = float(tr.fantasy_points.median())
@@ -531,13 +450,13 @@ def main() -> int:
             "y": te.fantasy_points.to_numpy(),
             "constant": med,
             "career": te.k_fantasy_points_career.fillna(med).to_numpy(),
-            "implied": te.implied_total.fillna(te.implied_total.median()).to_numpy(),
+            "implied": te.implied_total.fillna(tr.implied_total.median()).to_numpy(),
             "ridge": np.asarray(ridge, dtype=float),
         })
         for c in pred.columns:
             block[c] = pred[c].to_numpy()
         out.append(block)
-        parts.append(fold_components(tr, te, pred, ridge))
+        parts.append(fold_components(tr, te, pred, ridge, scoring))
         base_rate[int(s)] = {thr: float((tr.fantasy_points >= thr).mean()) for thr in THRESHOLDS}
     P = pd.concat(out, ignore_index=True)
     C = pd.concat(parts, ignore_index=True)
@@ -586,11 +505,11 @@ def main() -> int:
           f"training-season mean, with a week-block 95% interval:")
     print(skill.round(4).to_string(index=False))
 
-    hist = df[df.season <= LAST_TEST]
-    fg_all, pat_all = component_points(hist)
-    vd = variance_decomposition(fg_all, pat_all, hist.fantasy_points)
-    print(f"\nVariance of weekly points, {len(hist):,} kicker-games "
-          f"{int(hist.season.min())}-{int(hist.season.max())}:")
+    historical = df[df.season <= LAST_TEST]
+    fg_all, pat_all = component_points(historical, scoring)
+    vd = variance_decomposition(fg_all, pat_all, historical.fantasy_points)
+    print(f"\nVariance of weekly points, {len(df):,} kicker-games "
+          f"{int(seasons[0])}-{int(seasons[-1])}:")
     print(vd.round(4).to_string(index=False))
 
     cal, rel = calibration(P, base_rate)
@@ -605,18 +524,18 @@ def main() -> int:
     print("\nReliability of P(y>=15), ten equal-count bins:")
     print(rel[rel.threshold == 15].round(4).to_string(index=False))
 
-    REPORTS.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     # predict_week reads this file, possibly while this runs: write, then swap.
-    tmp = REPORTS / "backtest_predictions.parquet.tmp"
+    tmp = out_dir / "backtest_predictions.parquet.tmp"
     P.to_parquet(tmp, index=False)
-    os.replace(tmp, REPORTS / "backtest_predictions.parquet")
-    t.to_csv(REPORTS / "backtest_summary.csv", index=False)
-    skill.to_csv(REPORTS / "component_skill.csv", index=False)
-    vd.to_csv(REPORTS / "variance_decomposition.csv", index=False)
-    seas.to_csv(REPORTS / "season_level_tests.csv", index=False)
-    cal.to_csv(REPORTS / "calibration_summary.csv", index=False)
-    rel.to_csv(REPORTS / "calibration_reliability.csv", index=False)
-    print("\nwrote reports/backtest_summary.csv, component_skill.csv, "
+    os.replace(tmp, out_dir / "backtest_predictions.parquet")
+    t.to_csv(out_dir / "backtest_summary.csv", index=False)
+    skill.to_csv(out_dir / "component_skill.csv", index=False)
+    vd.to_csv(out_dir / "variance_decomposition.csv", index=False)
+    seas.to_csv(out_dir / "season_level_tests.csv", index=False)
+    cal.to_csv(out_dir / "calibration_summary.csv", index=False)
+    rel.to_csv(out_dir / "calibration_reliability.csv", index=False)
+    print(f"\nwrote {out_dir}: backtest_summary.csv, component_skill.csv, "
           "variance_decomposition.csv, season_level_tests.csv, calibration_summary.csv, "
           "calibration_reliability.csv and backtest_predictions.parquet")
     return 0
@@ -823,5 +742,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Season-forward backtest of the kicker models.")
     ap.add_argument("--self-check", action="store_true",
                     help="offline checks on toy data; reads no data and writes nothing")
+    ap.add_argument("--out-dir", type=pathlib.Path,
+                    help="required: separate versioned evaluation directory; existing reports stay unchanged")
+    ap.add_argument("--processed-dir", type=pathlib.Path)
+    ap.add_argument("--scoring-settings", type=pathlib.Path,
+                    help="Sleeper league JSON, or its scoring_settings object")
     a = ap.parse_args()
-    sys.exit(self_check() if a.self_check else main())
+    if a.self_check:
+        sys.exit(self_check())
+    if a.out_dir is None:
+        ap.error("--out-dir is required; preserve earlier research reports")
+    from kicker_analysis.scoring import load_scoring
+    sys.exit(main(a.out_dir, a.processed_dir, load_scoring(a.scoring_settings)))

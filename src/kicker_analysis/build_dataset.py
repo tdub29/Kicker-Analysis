@@ -68,6 +68,9 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from kicker_analysis.scoring import BASE_SCORING  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CACHE = ROOT / "data" / "external"
 OUT = ROOT / "data" / "processed"
@@ -111,9 +114,11 @@ RELOCATIONS = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
 
 BUCKETS = ["fg_made_0_19", "fg_made_20_29", "fg_made_30_39",
            "fg_made_40_49", "fg_made_50_59", "fg_made_60_"]
+ATT_BUCKETS = [name.replace("made", "att") for name in BUCKETS]
+LONG_COLS = ["fg_att_55p", "fg_made_55p", "fg_att_55_59", "fg_made_55_59"]
 KEEP = (["season", "week", "season_type", "player_id", "player_display_name", "team",
          "fg_att", "fg_made", "fg_missed", "fg_blocked", "fg_long",
-         "pat_att", "pat_made", "pat_missed"] + BUCKETS)
+         "pat_att", "pat_made", "pat_missed", "pat_blocked"] + BUCKETS)
 
 # A season counts as complete when it has a kicker row for at least this share of
 # the team-games the schedule says were played. A team-game with no field goal
@@ -283,17 +288,12 @@ def load_release() -> pd.DataFrame:
     return pd.read_parquet(fetch(KICKING_URL, KICKING_CACHE, max_age_hours=LIVE_MAX_AGE_HOURS))
 
 
-def fantasy_points(df: pd.DataFrame) -> pd.Series:
+def fantasy_points(df: pd.DataFrame, scoring=None) -> pd.Series:
     """Week fantasy points from the distance buckets, not from a total."""
-    short = df[["fg_made_0_19", "fg_made_20_29", "fg_made_30_39"]].sum(axis=1)
-    mid = df["fg_made_40_49"]
-    long = df[["fg_made_50_59", "fg_made_60_"]].sum(axis=1)
-    return (short * SCORING["fg_0_39"] + mid * SCORING["fg_40_49"]
-            + long * SCORING["fg_50_"] + df["pat_made"] * SCORING["pat"]
-            + df["fg_missed"] * SCORING["fg_miss"])
+    return (scoring or BASE_SCORING).points(df)
 
 
-def kicking_from_pbp(season: int) -> pd.DataFrame:
+def kicking_from_pbp(season: int, include_distances: bool = False) -> pd.DataFrame:
     """Rebuild the release's kicking columns for a season it does not cover.
 
     Only the columns in KEEP, so the two sources concatenate without a silent
@@ -317,6 +317,11 @@ def kicking_from_pbp(season: int) -> pd.DataFrame:
              (40, 49, "fg_made_40_49"), (50, 59, "fg_made_50_59"), (60, 99, "fg_made_60_")]
     for lo, hi, name in edges:
         fg[name] = ((fg.made == 1) & fg.kick_distance.between(lo, hi)).astype(int)
+        fg[name.replace("made", "att")] = fg.kick_distance.between(lo, hi).astype(int)
+    fg["fg_att_55p"] = fg.kick_distance.ge(55).astype(int)
+    fg["fg_made_55p"] = fg.fg_att_55p * fg.made
+    fg["fg_att_55_59"] = fg.kick_distance.between(55, 59).astype(int)
+    fg["fg_made_55_59"] = fg.fg_att_55_59 * fg.made
 
     xp = pbp[pbp.extra_point_attempt == 1].copy()
     xp["pat_made"] = (xp.extra_point_result == "good").astype(int)
@@ -328,20 +333,21 @@ def kicking_from_pbp(season: int) -> pd.DataFrame:
         fg_att=("field_goal_attempt", "sum"), fg_made=("made", "sum"),
         fg_missed=("missed", "sum"), fg_blocked=("blocked", "sum"),
         fg_long=("kick_distance", lambda s: s[fg.loc[s.index, "made"] == 1].max()),
-        **{b: (b, "sum") for _, _, b in edges}).reset_index()
+        **{b: (b, "sum") for b in BUCKETS + ATT_BUCKETS + LONG_COLS}).reset_index()
     b = xp.groupby(key, dropna=False).agg(
         pat_att=("extra_point_attempt", "sum"), pat_made=("pat_made", "sum"),
-        pat_missed=("pat_missed", "sum")).reset_index()
+        pat_missed=("pat_missed", "sum"), pat_blocked=("pat_blocked", "sum")).reset_index()
     out = a.merge(b, on=key, how="outer")
     out = out.rename(columns={"posteam": "team", "kicker_player_id": "player_id",
                               "kicker_player_name": "player_display_name"})
     for c in KEEP:
         if c not in out.columns:
             out[c] = 0
-    num = [c for c in KEEP if c not in
+    columns = KEEP + (ATT_BUCKETS + LONG_COLS if include_distances else [])
+    num = [c for c in columns if c not in
            ("season", "week", "season_type", "player_id", "player_display_name", "team")]
     out[num] = out[num].fillna(0)
-    return out[KEEP]
+    return out[columns]
 
 
 def parity_season(rel: pd.DataFrame, now: float | None = None) -> int:
@@ -537,6 +543,10 @@ def _input_url(name: str) -> str | None:
         return GAMES_URL
     if name == KICKING_CACHE:
         return KICKING_URL
+    if name == "players.csv":
+        return f"{RELEASE}/players/players.csv"
+    if re.fullmatch(r"snap_counts_\d{4}\.parquet", name):
+        return f"{RELEASE}/snap_counts/{name}"
     m = re.fullmatch(r"pbp_(\d{4})\.parquet", name)
     return pbp_url(int(m.group(1))) if m else None
 
@@ -593,7 +603,7 @@ def write_manifest(path: pathlib.Path | None = None,
     return path
 
 
-def main() -> int:
+def main(out_dir: pathlib.Path | None = None) -> int:
     games = load_games()
     live = live_season(games)
     print(f"schedule {GAMES_URL}\n  {int(games.season.min())}-{int(games.season.max())}, "
@@ -620,16 +630,17 @@ def main() -> int:
     df["fantasy_points"] = fantasy_points(df)
     df = df.sort_values(["player_id", "season", "week"]).reset_index(drop=True)
 
-    OUT.mkdir(parents=True, exist_ok=True)
-    path = OUT / "kicker_games.parquet"
+    destination = out_dir or OUT
+    destination.mkdir(parents=True, exist_ok=True)
+    path = destination / "kicker_games.parquet"
     df.to_parquet(path, index=False)
-    print(f"\nwrote {path.relative_to(ROOT)}: {len(df):,} kicker-games, "
+    print(f"\nwrote {path}: {len(df):,} kicker-games, "
           f"{df.season.min()}-{df.season.max()}, {df.player_id.nunique():,} kickers")
     print(f"  unmatched to a scheduled game: {int(df.game_id.isna().sum()):,}")
     print(f"  fantasy points: mean {df.fantasy_points.mean():.2f}, "
           f"sd {df.fantasy_points.std():.2f}, max {df.fantasy_points.max():.0f}")
-    m = write_manifest()
-    print(f"wrote {m.relative_to(ROOT)}: {len(json.loads(m.read_text())['inputs'])} inputs")
+    m = write_manifest(path=destination / "data_manifest.json" if out_dir else None)
+    print(f"wrote {m}: {len(json.loads(m.read_text())['inputs'])} inputs")
     return 0
 
 
@@ -857,5 +868,7 @@ def self_check() -> int:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--self-check", action="store_true")
+    ap.add_argument("--out-dir", type=pathlib.Path,
+                    help="write a versioned reconstruction without replacing canonical processed data")
     a = ap.parse_args()
-    sys.exit(self_check() if a.self_check else main())
+    sys.exit(self_check() if a.self_check else main(out_dir=a.out_dir))

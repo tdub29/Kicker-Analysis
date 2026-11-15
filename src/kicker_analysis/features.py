@@ -65,12 +65,15 @@ import pandas as pd
 
 WINDOWS = (4, 8)
 
-OUTCOME_COLS = ["fantasy_points", "fg_att", "fg_made", "fg_missed", "pat_att",
+OUTCOME_COLS = ["fantasy_points", "fg_att", "fg_made", "fg_missed", "pat_att", "pat_blocked",
                 "pat_made", "fg_long", "team_score",
                 "fg_made_0_19", "fg_made_20_29", "fg_made_30_39",
                 "fg_made_40_49", "fg_made_50_59", "fg_made_60_",
                 "fourth_in_range", "fourth_fg", "fourth_go", "fourth_punt",
-                "fourth_mean_togo", "fg_share", "go_rate"]
+                "fourth_mean_togo", "fg_share", "go_rate",
+                "fg_att_0_19", "fg_att_20_29", "fg_att_30_39", "fg_att_40_49",
+                "fg_att_50_59", "fg_att_60_", "fg_att_55p", "fg_made_55p",
+                "fg_att_55_59", "fg_made_55_59"]
 
 # Observed on the day, never available in advance. Named here so the ban is a
 # fact in the code rather than a habit, and so feature_columns can assert it.
@@ -87,7 +90,8 @@ ROOF_TYPE = {"dome": "dome", "outdoors": "outdoors",
              "open": "retractable", "closed": "retractable"}
 # Neutral sites on the 2026 schedule with no played game in games.csv, so the
 # table cannot learn them: the Bernabeu roof retracts, the Maracana has none.
-STADIUM_TYPE_KNOWN = {"MAD01": "retractable", "RIO00": "outdoors"}
+STADIUM_TYPE_KNOWN = {"MAD01": "retractable", "RIO00": "outdoors",
+                      "MUN01": "outdoors", "MUN00": "outdoors"}
 
 
 def _lagged(df: pd.DataFrame, group: str, cols: list[str], prefix: str,
@@ -162,6 +166,16 @@ def roof_flags(df: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.DataFr
     d = df.copy()
     kind = d.roof.map(ROOF_TYPE)
     src = games if games is not None else d
+    if "stadium_id" in d:
+        venue = d.stadium_id
+    elif {"game_id", "stadium_id"} <= set(src.columns):
+        venue = d.game_id.map(src.drop_duplicates("game_id").set_index("game_id").stadium_id)
+    else:
+        venue = pd.Series(index=d.index, dtype=object)
+    # Authoritative venue identity outranks a contradictory per-game roof label.
+    override = venue.map(STADIUM_TYPE_KNOWN)
+    kind = override.combine_first(kind)
+    d["venue_type_override"] = override.notna()
     if kind.isna().any() and {"stadium_id", "roof"} <= set(src.columns):
         venue = (d.stadium_id if "stadium_id" in d.columns else
                  d.game_id.map(src.drop_duplicates("game_id").set_index("game_id").stadium_id))
@@ -183,7 +197,8 @@ def check_roof(feats: pd.DataFrame) -> None:
     """
     for c in ("is_indoor_certain", "is_retractable"):
         assert feats[c].std() > 0, f"{c} is constant"
-    assert feats.loc[feats.roof.eq("dome"), "is_indoor_certain"].eq(1).all()
+    source_dome = feats.roof.eq("dome") & ~feats.get("venue_type_override", False)
+    assert feats.loc[source_dome, "is_indoor_certain"].eq(1).all()
     assert feats.loc[feats.roof.isin(RETRACTABLE_ROOFS), "is_retractable"].eq(1).all()
     assert feats.loc[feats.roof.eq("outdoors"), ["is_indoor_certain", "is_retractable"]].eq(0).all().all()
     home = feats[feats.is_home.eq(1) & feats.team.isin(["DET", "NO"])]
@@ -196,7 +211,9 @@ def build_features(df: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.Da
 
     kicker = _lagged(d.sort_values(["player_id", "season", "week"]),
                      "player_id", ["fantasy_points", "fg_att", "fg_made",
-                                   "pat_att", "fg_long"], "k")
+                                   "pat_att", "fg_long"] + [c for c in
+                        ["fg_att_55p", "fg_made_55p", "fg_att_60_", "fg_made_60_"]
+                        if c in d], "k")
     kicker["k_fg_pct_career"] = (kicker["k_fg_made_career"]
                                  / kicker["k_fg_att_career"].replace(0, np.nan))
     kicker["k_fg_pct_l8"] = (kicker["k_fg_made_l8"]
@@ -270,8 +287,9 @@ def build_features(df: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.Da
     # Exposure to weather, using only what is knowable: an outdoor venue in a
     # month that is historically windy.
     if "venue_wind_climate" in feats.columns:
-        feats["climate_wind_exposed"] = (feats["venue_wind_climate"].fillna(0)
-                                         * (1 - feats["is_indoor_certain"]))
+        feats["climate_wind_exposed"] = feats["venue_wind_climate"].where(
+            ~feats["is_indoor_certain"].eq(1), 0.0)
+        feats["climate_wind_missing"] = feats.climate_wind_exposed.isna().astype(int)
     return feats
 
 

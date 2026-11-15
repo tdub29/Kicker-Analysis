@@ -1,64 +1,12 @@
-"""Rank this week's kickers and write the weekly board.
+"""Build an identified weekly market-reference board from corrected outcomes.
 
-The backtest measures the method. This applies it to games that have not happened
-yet, which is a different job with one hard constraint: the feature row for an
-unplayed game must be built the same way a training row was, from history only.
-That is done by appending a PSEUDO-ROW per kicker per upcoming game, with every
-outcome column left null, then running the identical feature builder over history
-plus pseudo-rows together. The lagged windows then fill from real prior games and
-nothing else, because there is nothing else there to fill from.
-
-A board for week N of season S uses only games strictly before (S, N), for the
-model fit and for the lagged features alike. Built before the week starts that
-holds by itself, because nothing later exists yet. Rebuilt afterwards it has to
-be enforced: without the cutoff, `--week 3` run later in the season fit the
-models on week 3's own results, and because the real week-3 row sat next to the
-week-3 pseudo-row, the kicker lags counted his week-3 game as his previous one.
-The cutoff also leaves out a Thursday result from the week being forecast, so a
-board built on Wednesday and one built on Friday train on the same rows. A
-rebuilt week is still a reconstruction rather than the board that was
-published: games.csv carries closing lines, and Sleeper reports today's rosters,
-which is why the roster filter is applied only to the upcoming slate.
-
-The published board is a record, so it is never overwritten by default. If
-reports/week_<season>_<week>_kickers.csv (or the `--out` path, when given)
-exists, the run stops before training, says so and exits 0 (a configured site
-payload is then written from that existing board); `--force` replaces it and
-prints the path it replaced, and `--out` writes a rebuild somewhere else without
-touching the record.
-
-Two orderings are written, and only the first is the recommendation:
-
-  rank_points     the board: ridge expected points, highest first. This is the
-                  ordering the season-forward backtest scores and supports.
-  rank_ceiling    the same kickers ordered by the count model's P(y >= 15), an
-                  alternative view for a week where only a big score helps. The
-                  backtest found it adds nothing measurable: ordered this way the
-                  pick hit a 15-point week no more often than the main board did
-                  (ceiling_r2 in reports/backtest_summary.csv). The claim that
-                  ranking by the mean selects AGAINST the ceiling held for a
-                  retired gradient-boosted model, not this one; METHOD.md retracts it.
-
-Who kicks for whom is taken from the most recent game in the data rather than
-from a depth chart, and the row carries how many weeks stale that is. A kicker
-signed on Wednesday will not appear, which is stated in the output rather than
-hidden. Before a season's first game each team's kicker is the last one who
-kicked for it in an earlier season, so an offseason signing is missing from a
-week-1 board. A kicker Sleeper's player list puts on another team, or on none,
-is dropped; that list is cached in data/external/ and refreshed at most daily.
-
-The author's Fantasy Football site reads a JavaScript payload of the board. It is
-written only where `--site-out` or the KICKER_SITE_JS environment variable says,
-and otherwise skipped with one printed line, so a clone on any machine runs the
-same code without needing that site. KICKER_SITE_JS is used only for the
-upcoming week; a rebuilt earlier week goes to the site only when `--site-out`
-names a path.
-
-    python src/kicker_analysis/predict_week.py
-    python src/kicker_analysis/predict_week.py --week 3 --out /tmp/week3.csv
-    python src/kicker_analysis/predict_week.py --site-out path/to/site/data/kickers.js
-    python src/kicker_analysis/predict_week.py --max-days-ahead 6   # the scheduled run
-    python src/kicker_analysis/predict_week.py --self-check
+Training and lags stop before the forecast week. The reference mean is a linear
+fit on implied team points; a separate pooled GLM supplies experimental tails.
+League scoring is explicit and shared across labels, lags and simulated outcomes.
+Prepared participation evidence is required. Original reports/week_* archives
+are preserved; new default boards receive unique timestamped data/forecasts paths.
+The app payload is written only through --site-out or KICKER_SITE_JS.
+Current roster filtering is not historical pregame starter verification.
 """
 from __future__ import annotations
 
@@ -68,6 +16,9 @@ import os
 import pathlib
 import sys
 import warnings
+import hashlib
+import io
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -77,7 +28,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from kicker_analysis.build_dataset import (  # noqa: E402
     GAMES_URL, LIVE_MAX_AGE_HOURS, RELOCATIONS, fetch)
 from kicker_analysis.features import build_features  # noqa: E402
-from kicker_analysis.model import CompoundKickerModel, FEATURES, RidgeRanker  # noqa: E402
+from kicker_analysis.model import GlmKickerModel, FEATURES, RidgeRanker  # noqa: E402
+from kicker_analysis.scoring import BASE_SCORING, KickerScoring, load_scoring  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 # One producer, one path. `_v2` was a hand-copied snapshot that nothing
@@ -183,6 +135,8 @@ def current_kickers(hist: pd.DataFrame, season: int) -> pd.DataFrame:
     season instead, and last_seen_week is left empty: it counts weeks of this
     season, and he has none yet.
     """
+    if "model_eligible" in hist:
+        hist = hist[hist.model_eligible.eq(True)]
     recent = hist[hist.season == season].sort_values(["team", "season", "week"])
     preseason = recent.empty
     if preseason:
@@ -209,7 +163,7 @@ def sleeper_roster() -> pathlib.Path | None:
         return None
 
 
-def drop_released(ks: pd.DataFrame, roster: pathlib.Path | None) -> pd.DataFrame:
+def drop_released(ks: pd.DataFrame, roster: pathlib.Path | None, raw_bytes=None) -> pd.DataFrame:
     """Drop a kicker Sleeper no longer lists on that team.
 
     The last man who kicked keeps his team's slot until the next game, so a
@@ -219,7 +173,7 @@ def drop_released(ks: pd.DataFrame, roster: pathlib.Path | None) -> pd.DataFrame
     if roster is None or not roster.exists():
         return ks
     try:
-        raw = json.loads(roster.read_text(encoding="utf-8"))
+        raw = json.loads(raw_bytes if raw_bytes is not None else roster.read_text(encoding="utf-8"))
     except ValueError as exc:
         print(f"{roster.name} is not valid JSON ({exc}): roster read from game history only")
         return ks
@@ -270,7 +224,7 @@ def pseudo_rows(slate: pd.DataFrame, kickers: pd.DataFrame, season: int,
 
 
 def assemble(hist: pd.DataFrame, fut: pd.DataFrame, games: pd.DataFrame | None,
-             season: int, week: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+             season: int, week: int, scoring=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(training rows, pseudo-row features) for the board for (season, week).
 
     History is cut BEFORE the feature builder runs, not only before the fit. A
@@ -281,11 +235,15 @@ def assemble(hist: pd.DataFrame, fut: pd.DataFrame, games: pd.DataFrame | None,
     # picked up the Thursday game that had already kicked off, which is how a
     # 15-game slate produced 32 kickers and listed a man whose week was over.
     past = before_week(hist, season, week).assign(_pseudo=0)
+    if scoring is not None:
+        past["fantasy_points"] = scoring.points(past)
     combined = pd.concat([past, fut.drop(columns=["last_seen_week"], errors="ignore")
                           .assign(_pseudo=1)], ignore_index=True)
     feats = build_features(combined, games=games)
     future = feats[feats._pseudo == 1].copy()
     train = feats[(feats._pseudo == 0) & feats.fantasy_points.notna()].copy()
+    if "model_eligible" in train:
+        train = train[train.model_eligible.eq(True)].copy()
     last = (train.season * 100 + train.week).max() if len(train) else -1
     assert last < season * 100 + week, f"training reaches {last}, board is {season} week {week}"
     return train, future
@@ -293,6 +251,12 @@ def assemble(hist: pd.DataFrame, fut: pd.DataFrame, games: pd.DataFrame | None,
 
 class BoardExists(FileExistsError):
     """The board for this week is already written and --force was not given."""
+
+
+def board_identity(frame):
+    """Bind final row order, ranks, scoring and predictions, excluding this hash."""
+    content = frame.drop(columns=["board_id"], errors="ignore").to_csv(index=False, lineterminator="\n")
+    return hashlib.sha256(content.encode()).hexdigest()
 
 
 def write_board(out: pd.DataFrame, path: pathlib.Path, force: bool = False) -> bool:
@@ -324,11 +288,21 @@ def _shown(path: pathlib.Path) -> str:
 
 def run(week_override: int | None = None, force: bool = False,
         out_path: pathlib.Path | None = None, site_out: str | None = None,
-        max_days_ahead: int | None = None) -> pd.DataFrame:
+        max_days_ahead: int | None = None, scoring=BASE_SCORING,
+        processed: pathlib.Path | None = None) -> pd.DataFrame:
     # The upcoming slate is decided from this file, so reading a cached copy
     # silently re-forecasts a week that is already over. Refresh it first.
-    games = pd.read_csv(fetch(GAMES_URL, "games.csv", max_age_hours=LIVE_MAX_AGE_HOURS),
-                        low_memory=False)
+    sources = sorted(pathlib.Path(__file__).parent.glob("*.py"))
+    def source_identity():
+        return hashlib.sha256(b"".join(p.name.encode() + p.read_bytes() for p in sources)).hexdigest()
+    frozen_source = source_identity()
+    consumed = {}
+    def snapshot(path):
+        raw = path.read_bytes()
+        consumed[path] = hashlib.sha256(raw).hexdigest()
+        return io.BytesIO(raw)
+    schedule_path = fetch(GAMES_URL, "games.csv", max_age_hours=LIVE_MAX_AGE_HOURS)
+    games = pd.read_csv(snapshot(schedule_path), low_memory=False)
     for c in ("home_team", "away_team"):
         games[c] = games[c].replace(RELOCATIONS)
     season, week, slate, live = slate_for(games, week_override)
@@ -354,7 +328,8 @@ def run(week_override: int | None = None, force: bool = False,
               f"--max-days-ahead {max_days_ahead}, so nothing is built yet")
         return pd.DataFrame()
 
-    path = out_path or REPORTS / f"week_{season}_{week}_kickers.csv"
+    created = datetime.now(timezone.utc).isoformat()
+    path = out_path or ROOT / "data/forecasts" / f"{season}_{week}_{created.replace(':', '')}_{scoring.identity[:10]}.csv"
     # A site path from the environment is meant for the live board; a rebuilt past
     # week goes to the site only when --site-out names it on the command line.
     site = site_target(site_out) if (live or site_out) else None
@@ -362,13 +337,19 @@ def run(week_override: int | None = None, force: bool = False,
         print(f"{_shown(path)} already exists, so the {season} week {week} board is "
               f"not rebuilt over it. --force replaces it; --out PATH writes a rebuild "
               f"elsewhere.")
-        board = pd.read_csv(path, dtype={"player_id": str})
+        board = pd.read_csv(path, dtype={"player_id": str}, float_precision="round_trip")
+        if ("scoring_id" not in board
+                or not board.scoring_id.eq(scoring.identity).all()):
+            raise ValueError("saved board does not match requested league scoring")
         if site is not None:
             write_site(board, season, week, site)
         return board
 
-    hist = pd.read_parquet(PROC / "kicker_games.parquet")
-    fourth = pd.read_parquet(PROC / "fourth_down.parquet")
+    proc = processed or ROOT / "data/processed/rebuilt"
+    if not (proc / "quality.json").exists():
+        raise ValueError("run prepare.py first; corrected participation/scoring inputs are required")
+    hist = pd.read_parquet(snapshot(proc / "kicker_games.parquet"))
+    fourth = pd.read_parquet(snapshot(proc / "fourth_down.parquet"))
     hist = hist.merge(fourth, on=["season", "week", "season_type", "team"], how="left")
     hist = hist[(hist.season >= FIRST_SEASON) & (hist.season_type == "REG")].copy()
 
@@ -403,11 +384,17 @@ def run(week_override: int | None = None, force: bool = False,
               f"one who kicked for it before {season}, so an offseason signing will "
               f"not appear, and stale_weeks is left empty")
     if live:
-        ks = drop_released(ks, sleeper_roster())
+        roster = sleeper_roster()
+        ks = drop_released(ks, roster, snapshot(roster).getvalue() if roster else None)
     fut = pseudo_rows(slate, ks, season, week, past)
     print(f"{season} week {week}: {len(slate)} games, {len(fut)} kickers")
 
-    train, future = assemble(past, fut, games, season, week)
+    train, future = assemble(past, fut, games, season, week, scoring=scoring)
+    future = future[future.implied_total.notna()].copy()
+    if future.empty:
+        raise ValueError("no current market lines; reference forecast unavailable")
+    frozen_inputs = hashlib.sha256(json.dumps(
+        {p.name: sha for p, sha in consumed.items()}, sort_keys=True).encode()).hexdigest()
     last = train.sort_values(["season", "week"]).iloc[-1]
     print(f"training on {len(train):,} completed kicker-games through "
           f"{int(last.season)} week {int(last.week)}")
@@ -417,8 +404,13 @@ def run(week_override: int | None = None, force: bool = False,
     # the saved backtest for the site note, never typed in). The count model
     # supplies the distribution; how its pooled rates compare with what happened
     # is in reports/calibration_summary.csv.
-    pred = CompoundKickerModel().fit(train).predict(future)
-    pred["exp_points"] = RidgeRanker().fit(train).predict(future)
+    from kicker_analysis.evaluate_rebuild import market_fit
+    distribution = GlmKickerModel(scoring=scoring).fit(train)
+    pred = distribution.predict(future).drop(columns=["crps"], errors="ignore")
+    pred["distribution_mean_points"] = pred["exp_points"]
+    market = market_fit(train)
+    pred["ridge_points"] = RidgeRanker().fit(train).predict(future)
+    pred["exp_points"] = market.predict(future[["implied_total"]])
     out = pd.concat([future[["player_id", "player_display_name", "team", "opponent",
                              "is_home", "implied_total", "total_line", "team_spread",
                              "is_indoor_certain", "game_id"]].reset_index(drop=True),
@@ -428,9 +420,24 @@ def run(week_override: int | None = None, force: bool = False,
     out["stale_weeks"] = week - out.last_seen_week
     out["season"] = season
     out["week"] = week
+    out["scoring_id"] = scoring.identity
+    out["scoring_spec"] = json.dumps(scoring.__dict__, sort_keys=True)
+    out["distribution_version"] = "pooled-glm-total-allocation-v2-experimental"
+    out["model_id"] = "implied-total-linear-reference-v2"
+    out["created_utc"] = created
+    out["starter_status"] = "inferred from prior placekicking role; filtered by current roster, not a verified depth chart"
+    out["training_cutoff"] = f"{int(last.season)}-W{int(last.week)}"
+    out["market_intercept"] = float(market[-1].intercept_)
+    out["market_coefficient"] = float(market[-1].coef_[0])
+    # Identity includes dirty working source and actual raw/prepared snapshot bytes.
+    if source_identity() != frozen_source or any(
+            hashlib.sha256(p.read_bytes()).hexdigest() != sha for p, sha in consumed.items()):
+        raise ValueError("forecast source/inputs changed during fit; no forecast published")
+    out["source_id"], out["input_id"] = frozen_source, frozen_inputs
     out = out.sort_values("exp_points", ascending=False).reset_index(drop=True)
     out["rank_points"] = np.arange(1, len(out) + 1)
     out["rank_ceiling"] = out.p_ge_15.rank(ascending=False, method="min").astype(int)
+    out["board_id"] = board_identity(out)
 
     cols = ["rank_points", "rank_ceiling", "player_display_name", "team", "opponent",
             "implied_total", "exp_points", "floor_p20", "ceiling_p90", "p_ge_15",
@@ -541,20 +548,44 @@ def site_note(figs: dict) -> str:
 
 def write_site(df: pd.DataFrame, season: int, week: int, path: pathlib.Path) -> None:
     """Emit the file the Fantasy Football site loads, as window.KICKER_MODEL."""
-    # Headline claims, recomputed from the saved backtest on every run so the
-    # published note cannot drift from reports/.
+    required = {"model_id", "scoring_spec", "scoring_id", "source_id", "input_id",
+                "board_id", "created_utc", "training_cutoff", "distribution_mean_points"}
+    if df.empty or not required <= set(df):
+        raise ValueError("legacy/unidentified forecast cannot be promoted to the current app")
+    if not df.season.eq(season).all() or not df.week.eq(week).all():
+        raise ValueError("board season/week differs from export request")
+    for field in required - {"distribution_mean_points"}:
+        if df[field].nunique(dropna=False) != 1:
+            raise ValueError(f"mixed board identity: {field}")
+    first = df.iloc[0]
+    scoring = KickerScoring(**json.loads(first.scoring_spec))
+    if scoring.identity != first.scoring_id:
+        raise ValueError("scoring specification does not match scoring identity")
+    if board_identity(df) != first.board_id:
+        raise ValueError("board content does not match board identity")
     payload = {
         "season": season, "week": week,
-        "method": site_method(),
-        "scoring": "FG 0-39 = 3, 40-49 = 4, 50+ = 5, PAT = 1, miss = 0",
+        "schemaVersion": 2,
+        "method": "Market reference: linear expected points from implied team total. Pooled count GLMs supply separate experimental distributions; ridge stays research-only.",
+        "scoring": json.loads(first.scoring_spec),
+        "scoringId": first.scoring_id,
+        "modelId": first.model_id, "boardId": first.board_id,
+        "sourceId": first.source_id, "inputId": first.input_id,
+        "createdUtc": first.created_utc, "trainingCutoff": first.training_cutoff,
+        "status": "reference; predictive superiority unproven",
+        "practicalTiePoints": .5,
         "features": FEATURES,
-        "note": site_note(backtest_figures()),
+        "note": "Historical 2018-2025 research was repeatedly inspected. No demonstrated practical improvement on real available-player lineup decisions. Differences under 0.5 expected points are practical ties. Experimental tails do not establish a better ceiling strategy.",
         "kickers": [
             {
                 "id": str(r.player_id), "name": r.player_display_name,
                 "team": r.team, "opp": r.opponent, "home": int(r.is_home),
                 "rankPoints": int(r.rank_points), "rankCeiling": int(r.rank_ceiling),
                 "exp": round(float(r.exp_points), 2),
+                "distributionMean": round(float(r.distribution_mean_points), 2),
+                "researchRidge": round(float(r.ridge_points), 2),
+                "reason": f"Market reference {r.market_intercept:.2f} + {r.market_coefficient:.3f} x team implied points. Coach/range effects remain experimental.",
+                "starterStatus": r.starter_status,
                 "floor": round(float(r.floor_p20), 1),
                 "ceil": round(float(r.ceiling_p90), 1),
                 "pGe15": round(float(r.p_ge_15), 4),
@@ -808,20 +839,22 @@ if __name__ == "__main__":
                          "default refuses)")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="write the board here instead of "
-                         "reports/week_<season>_<week>_kickers.csv (an "
-                         "existing file there is kept unless --force)")
+                         "reports/week_<season>_<week>_kickers.csv")
     ap.add_argument("--site-out", default=None,
-                    help=f"write the site payload here (default: ${SITE_ENV}, "
-                         f"used for the upcoming week only; neither set means "
-                         f"no site payload)")
+                    help=f"write the site payload here (default: ${SITE_ENV}; "
+                         f"neither set means no site payload)")
     ap.add_argument("--max-days-ahead", type=int, default=None,
                     help="build nothing if the upcoming slate starts more than this "
                          "many days from today (UTC); for scheduled runs")
+    ap.add_argument("--processed-dir", type=pathlib.Path)
+    ap.add_argument("--scoring-settings", type=pathlib.Path,
+                    help="explicit Sleeper league scoring snapshot")
     a = ap.parse_args()
     if a.self_check:
         sys.exit(self_check())
     if a.week is not None and a.week < 1:
         ap.error("--week must be 1 or more")
     run(a.week, force=a.force, out_path=a.out, site_out=a.site_out,
-        max_days_ahead=a.max_days_ahead)
+        max_days_ahead=a.max_days_ahead, processed=a.processed_dir,
+        scoring=load_scoring(a.scoring_settings))
     sys.exit(0)
