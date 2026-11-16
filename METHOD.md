@@ -17,10 +17,13 @@ and evaluation. Original forecasts are immutable records.
 
 The denominator is played team-games. Raw PBP establishes attempted kicks.
 Special-teams snaps establish activity only. A zero-attempt placekicker requires
-consistent player position, prior placekicking role on that team and no other
+consistent player position, prior career placekicking role and no other
 regular placekicker taking that game's kicks. Punters and kickoff specialists
 remain separate. This conditional research population does not establish who
 was known to be available before kickoff. Unresolved games remain in the ledger.
+Corrected files are stored in immutable generations. Consumers validate the
+completed generation's hashes before fitting; an interrupted build cannot
+publish a stable mixture of old and new tables.
 
 Weather uses only prior-season venue climate where observed. Unknown wind is
 not calm. Indoor certainty and retractable-roof type differ. Allianz Arena's

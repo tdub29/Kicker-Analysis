@@ -6,28 +6,117 @@
     "last": 2026,
     "team_games": 6064,
     "rows": 6093,
-    "eligible": 6041,
+    "eligible": 6048,
     "participation": {
       "attempting_regular_kicker": 5985,
-      "verified_active_zero": 56,
-      "special_teams_only_role_unresolved": 32,
+      "verified_active_zero": 63,
+      "special_teams_only_role_unresolved": 25,
       "emergency_or_unknown_role": 20
     },
     "unresolved_team_games": 8,
     "unmatched_snap_identities": 1,
     "missing_snap_sources": {},
+    "snap_coverage": {
+      "2015": {
+        "played_games": 256,
+        "covered_games": 256,
+        "missing_games": []
+      },
+      "2016": {
+        "played_games": 256,
+        "covered_games": 256,
+        "missing_games": []
+      },
+      "2017": {
+        "played_games": 256,
+        "covered_games": 256,
+        "missing_games": []
+      },
+      "2018": {
+        "played_games": 256,
+        "covered_games": 256,
+        "missing_games": []
+      },
+      "2019": {
+        "played_games": 256,
+        "covered_games": 256,
+        "missing_games": []
+      },
+      "2020": {
+        "played_games": 256,
+        "covered_games": 256,
+        "missing_games": []
+      },
+      "2021": {
+        "played_games": 272,
+        "covered_games": 272,
+        "missing_games": []
+      },
+      "2022": {
+        "played_games": 271,
+        "covered_games": 271,
+        "missing_games": []
+      },
+      "2023": {
+        "played_games": 272,
+        "covered_games": 272,
+        "missing_games": []
+      },
+      "2024": {
+        "played_games": 272,
+        "covered_games": 272,
+        "missing_games": []
+      },
+      "2025": {
+        "played_games": 272,
+        "covered_games": 272,
+        "missing_games": []
+      },
+      "2026": {
+        "played_games": 137,
+        "covered_games": 137,
+        "missing_games": []
+      }
+    },
     "historical_availability": "unavailable: participation is not pregame eligibility",
     "wind": "unknown retained; no historical forecast vintage supplied",
     "coach": "context-adjusted and prior-week only; reconstructed assignment, no publication vintage",
-    "long_menu": "yardline+17 is a proxy, not actual kick distance; +/-1-yard boundary sensitivity retained"
+    "long_menu": "yardline+17 is a proxy, not actual kick distance; +/-1-yard boundary sensitivity retained",
+    "participation_source_freshness": {
+      "players.csv": "2026-11-15T09:21:30Z",
+      "snap_counts_2015.parquet": "2026-11-15T09:25:16Z",
+      "snap_counts_2016.parquet": "2026-11-15T09:25:18Z",
+      "snap_counts_2017.parquet": "2026-11-15T09:25:20Z",
+      "snap_counts_2018.parquet": "2026-11-15T09:21:21Z",
+      "snap_counts_2019.parquet": "2026-11-15T09:25:22Z",
+      "snap_counts_2020.parquet": "2026-11-15T09:25:23Z",
+      "snap_counts_2021.parquet": "2026-11-15T09:25:25Z",
+      "snap_counts_2022.parquet": "2026-11-15T09:25:26Z",
+      "snap_counts_2023.parquet": "2026-11-15T09:25:28Z",
+      "snap_counts_2024.parquet": "2026-11-15T09:25:30Z",
+      "snap_counts_2025.parquet": "2026-11-15T09:25:31Z",
+      "snap_counts_2026.parquet": "2026-11-15T17:30:33Z"
+    },
+    "generation": "generations/c7c402185e7943538bcd46c3ea5d0535",
+    "prepared_sha256": {
+      "coach_decisions.parquet": "9594f32ab8a4ebccaa67ace803c4418b27dc9ba6d5034b436f6432c4b56a65d5",
+      "coach_distance_trends.csv": "2f7cfe53c5ad509f95c7c8f475e21ce2815592b221e9ce6ad2774f42a9f062c7",
+      "coach_history.parquet": "a881f47294b1db800976d7f10acd65300116ff9d1f9b8dbea100143a949a3e5c",
+      "data_manifest.json": "383ff13e7d3042846b53d6e103d901ce3ebce14b94b4508ea91934997c0c31f3",
+      "fourth_down.parquet": "88797b7079ef49a8261252abd4638c408968e0ed6ff43bc0e3725a54f48a4ef7",
+      "kicker_games.parquet": "e9543d0b5896972e58237699475834694ca600746299d86d960f0105cf7d77ed",
+      "long_menu_sensitivity.csv": "7e230a71f4c0c9cf7ccaa8584759e55131d42bcf21c0d635d457e6f0a875e77b",
+      "participation_ledger.csv": "3d9f100ad6f5716bab9e21dcc30aab1b7ee380d5435ff89471e0382bf050ac35",
+      "unmatched_snap_identities.csv": "6b2bdf80e4822f0cd4ad0c697e8e6db8d098fed2cf85755c4e1f88cb573b0a5b"
+    }
   },
   "historical2018_2025": {
     "team_games": 4254,
-    "eligible_team_games": 4234,
+    "eligible_team_games": 4240,
     "unmodeled_status": {
       "emergency_or_unknown_role": 7,
-      "special_teams_only_role_unresolved": 7,
-      "unresolved_no_verified_kicker": 6
+      "unresolved_no_verified_kicker": 6,
+      "special_teams_only_role_unresolved": 1
     }
   },
   "scoring": {
@@ -46,28 +135,35 @@
   "run_inputs": {
     "status": "frozen-before-fit",
     "scoring_snapshot": "c1e4fcb64e1043480ff58692611acd4c7a96de128cd82e7f10a3058561a11973",
-    "protocol": "436aade32d71ce275d47ddb217eb4cc9ed74485e7bed2e56a0e8e902b2917289",
+    "protocol": "765da6bbac46cd7973c538f279e10328e7cfecfb75f16ffaaaa456b1349fc576",
     "inputs": {
-      "kicker_games.parquet": "20930b9e15f29cb5a1feea51492cad35b787a14b019c7492d504ff2a1de75d0b",
-      "fourth_down.parquet": "cb7cf2d7d0c30a9f71cc76fd7cc95c0fd5cbb651c820cbd18ac3748376cc1fa4",
-      "coach_history.parquet": "83460336bd6b891aec2a417d4ba3666267bf4023c10f1a79bfd6ca3a94973ca4",
+      "quality.json": "81f583068cce96c1d93c1328842fba527aa187869c9a85f46c7a76d4953abe84",
+      "coach_decisions.parquet": "9594f32ab8a4ebccaa67ace803c4418b27dc9ba6d5034b436f6432c4b56a65d5",
+      "coach_distance_trends.csv": "2f7cfe53c5ad509f95c7c8f475e21ce2815592b221e9ce6ad2774f42a9f062c7",
+      "coach_history.parquet": "a881f47294b1db800976d7f10acd65300116ff9d1f9b8dbea100143a949a3e5c",
+      "data_manifest.json": "de25cdb764ea5debda2a58bd773ac9ed817f3de62996c41ef813317855a967d3",
+      "fourth_down.parquet": "88797b7079ef49a8261252abd4638c408968e0ed6ff43bc0e3725a54f48a4ef7",
+      "kicker_games.parquet": "e9543d0b5896972e58237699475834694ca600746299d86d960f0105cf7d77ed",
+      "long_menu_sensitivity.csv": "7e230a71f4c0c9cf7ccaa8584759e55131d42bcf21c0d635d457e6f0a875e77b",
+      "participation_ledger.csv": "3d9f100ad6f5716bab9e21dcc30aab1b7ee380d5435ff89471e0382bf050ac35",
+      "unmatched_snap_identities.csv": "6b2bdf80e4822f0cd4ad0c697e8e6db8d098fed2cf85755c4e1f88cb573b0a5b",
       "games.csv": "b8673dd2f276ce82871c8c37ff86dbf07d1278b449c61404823a602f9f04ef06"
     },
     "source": {
-      "backtest.py": "94d91e7e0a19a5ff0b73f63582f4f069dd0a8133914b1187df3bfa52c2c11456",
+      "backtest.py": "65bd9d57642c53249f4bf7685edf99595d54714d435d0e590b8529cc8b590b6a",
       "build_dataset.py": "69cbdaaf4e01812e1fe6c61c4277957d2f0bd84088f51d010c5f06bfc0f88225",
       "evaluate.py": "1c058bea97b0087739c90474bfd512343185bf0401a8d7e318700512fcf59c0f",
-      "evaluate_rebuild.py": "9b00b7ba584c93f7841f1482155719409e8057da5b5c2b3916d0ee687aaeffa4",
-      "features.py": "e06c6b9a325770ff2d5d3574497596f106abd404537020275e147751406f5fca",
+      "evaluate_rebuild.py": "d8ebff347512d167c1456ec1abe2fd7131bdc708abb629edb5140db9d4a1d880",
+      "features.py": "87daa52bf4bf9dfca9bebcb36c85e67d591310f590e00955249c9ac5dc0fb1b8",
       "feat_drives.py": "ceec3e52c51a9ac8b6b06a838d47ac34e7042066c30fd1a82e681cc9596671e6",
       "feat_legstadium.py": "11c2104499f3e8536e8d1cbc5abb61a048e4035552d188cfde5bcafd5dca5c49",
       "feat_redzone.py": "c7eb8c76211eed65902924dca6ae0d3060a2481755376b2460908e256255905b",
       "figures.py": "ff79b11881374a3f2fb60ec76e883bbae7914629d6d4d376cf9c059eb6736176",
-      "fourth_down.py": "fead518d4d1518e4ebcb907fd5f16bcf30b556bd248803cf736499d8ac890bb7",
-      "model.py": "b12c1370539326b0b9729f7dedec98b5cfa21980a9446ec58a9bc6bdab8a5b14",
+      "fourth_down.py": "94f5cbdae64c76c3c5f885b75b76e45e3d1a1181431575915a812762b8aae1d0",
+      "model.py": "0a54eb17a84a21c1645f3eba5bee74ec63311dec7ffafd34f3fd4610ca5d6604",
       "model_bakeoff.py": "5d9f5fd36473e86a5da42f9860cf366014c175c04d0808ef1e30f2d338fbbf74",
-      "predict_week.py": "2931ef8e1093c19ec09188a36dfff381dc8cee403db5bd9a9de2a76953d6117c",
-      "prepare.py": "f10e196c55f5f3b25cc36cfeb7ccc1de356aa730a53ddbdba8685f1549788a5b",
+      "predict_week.py": "9811dc51ace1b0fe97e5c1e63cc31c62d28fd125b09a993803d922e03ada393b",
+      "prepare.py": "4a72ed947c4a883643a28a15a8f0a3f487bac1422b51cfa0b125863be54720c5",
       "score_boards.py": "89450f1bf15fdf04fafe0ec789dc99980b140557b75151944009d84f2ad357c2",
       "scoring.py": "c3b92471f5affa54bc9e56df7062c6d53676238f06efb67d136197d5292320e9",
       "__init__.py": "31ec23fbac2e0f0c22bcfd4806e0698c62b9bec53aaf15350be3bdc273c520f0"
@@ -77,418 +173,422 @@
     {
       "season": 2018,
       "model": "compound",
-      "dispersion": 0.7330386219210016,
-      "bounded_dispersion": 0.7330386219210016,
-      "residual_fg_pat_correlation": -0.16663110293475983,
+      "dispersion": 0.7365559477765806,
+      "bounded_dispersion": 0.7365559477765806,
+      "residual_fg_pat_correlation": -0.1612055633240579,
       "inner_selection": null,
-      "train_n": 1533,
-      "test_n": 510
+      "train_n": 1534,
+      "test_n": 511
     },
     {
       "season": 2018,
       "model": "glm_pool",
-      "dispersion": 0.7138397941502074,
-      "bounded_dispersion": 0.7138397941502074,
-      "residual_fg_pat_correlation": -0.160286010672588,
+      "dispersion": 0.7210830448091308,
+      "bounded_dispersion": 0.7210830448091308,
+      "residual_fg_pat_correlation": -0.15450899551682384,
       "inner_selection": null,
-      "train_n": 1533,
-      "test_n": 510
+      "train_n": 1534,
+      "test_n": 511
     },
     {
       "season": 2018,
       "model": "glm_shrink",
-      "dispersion": 0.7138397941502074,
-      "bounded_dispersion": 0.7138397941502074,
-      "residual_fg_pat_correlation": -0.160286010672588,
+      "dispersion": 0.7210830448091308,
+      "bounded_dispersion": 0.7210830448091308,
+      "residual_fg_pat_correlation": -0.15450899551682384,
       "inner_selection": {
         "strength": 20.0,
         "inner_mae": {
-          "20.0": 3.678122645775084,
-          "100.0": 3.689884933439658
+          "20.0": 3.6823450720572675,
+          "100.0": 3.693863331986529
         }
       },
-      "train_n": 1533,
-      "test_n": 510
+      "train_n": 1534,
+      "test_n": 511
     },
     {
       "season": 2018,
       "model": "glm_coach",
-      "dispersion": 0.7121708639679499,
-      "bounded_dispersion": 0.7121708639679499,
-      "residual_fg_pat_correlation": -0.1625514114405322,
+      "dispersion": 0.719294762812123,
+      "bounded_dispersion": 0.719294762812123,
+      "residual_fg_pat_correlation": -0.15692997222611454,
       "inner_selection": {
         "strength": 20.0,
         "inner_mae": {
-          "20.0": 3.684172103253489,
-          "100.0": 3.6956606761352564
+          "20.0": 3.6875658371931292,
+          "100.0": 3.698882668035255
         }
       },
-      "train_n": 1533,
-      "test_n": 510
+      "train_n": 1534,
+      "test_n": 511
     },
     {
       "season": 2019,
       "model": "compound",
-      "dispersion": 0.6448623149289474,
-      "bounded_dispersion": 0.6448623149289474,
-      "residual_fg_pat_correlation": -0.20564925824113311,
+      "dispersion": 0.6628862571182594,
+      "bounded_dispersion": 0.6628862571182594,
+      "residual_fg_pat_correlation": -0.19537040669859937,
       "inner_selection": null,
-      "train_n": 2043,
-      "test_n": 506
+      "train_n": 2045,
+      "test_n": 507
     },
     {
       "season": 2019,
       "model": "glm_pool",
-      "dispersion": 0.6432590273231324,
-      "bounded_dispersion": 0.6432590273231324,
-      "residual_fg_pat_correlation": -0.202305167825962,
+      "dispersion": 0.6556242585958406,
+      "bounded_dispersion": 0.6556242585958406,
+      "residual_fg_pat_correlation": -0.19284469825967784,
       "inner_selection": null,
-      "train_n": 2043,
-      "test_n": 506
+      "train_n": 2045,
+      "test_n": 507
     },
     {
       "season": 2019,
       "model": "glm_shrink",
-      "dispersion": 0.6432590273231324,
-      "bounded_dispersion": 0.6432590273231324,
-      "residual_fg_pat_correlation": -0.202305167825962,
+      "dispersion": 0.6556242585958406,
+      "bounded_dispersion": 0.6556242585958406,
+      "residual_fg_pat_correlation": -0.19284469825967784,
       "inner_selection": {
         "strength": 20.0,
         "inner_mae": {
-          "20.0": 3.6795571725500604,
-          "100.0": 3.684114874846774
+          "20.0": 3.689299984658315,
+          "100.0": 3.693427155770908
         }
       },
-      "train_n": 2043,
-      "test_n": 506
+      "train_n": 2045,
+      "test_n": 507
     },
     {
       "season": 2019,
       "model": "glm_coach",
-      "dispersion": 0.6454628587009661,
-      "bounded_dispersion": 0.6454628587009661,
-      "residual_fg_pat_correlation": -0.20386775932117424,
+      "dispersion": 0.6580329047070486,
+      "bounded_dispersion": 0.6580329047070486,
+      "residual_fg_pat_correlation": -0.19462526305327274,
       "inner_selection": {
         "strength": 20.0,
         "inner_mae": {
-          "20.0": 3.6834564753168246,
-          "100.0": 3.6872996445518345
+          "20.0": 3.6927243888154035,
+          "100.0": 3.696153598121402
         }
       },
-      "train_n": 2043,
-      "test_n": 506
+      "train_n": 2045,
+      "test_n": 507
     },
     {
       "season": 2020,
       "model": "compound",
-      "dispersion": 0.6360265279625866,
-      "bounded_dispersion": 0.6360265279625866,
-      "residual_fg_pat_correlation": -0.2703923147930585,
+      "dispersion": 0.640888815901619,
+      "bounded_dispersion": 0.640888815901619,
+      "residual_fg_pat_correlation": -0.2632638140419948,
       "inner_selection": null,
-      "train_n": 2549,
+      "train_n": 2552,
       "test_n": 511
     },
     {
       "season": 2020,
       "model": "glm_pool",
-      "dispersion": 0.6357518220871783,
-      "bounded_dispersion": 0.6357518220871783,
-      "residual_fg_pat_correlation": -0.2590716249022908,
+      "dispersion": 0.6429999912373743,
+      "bounded_dispersion": 0.6429999912373743,
+      "residual_fg_pat_correlation": -0.2534179738249306,
       "inner_selection": null,
-      "train_n": 2549,
+      "train_n": 2552,
       "test_n": 511
     },
     {
       "season": 2020,
       "model": "glm_shrink",
-      "dispersion": 0.6357518220871783,
-      "bounded_dispersion": 0.6357518220871783,
-      "residual_fg_pat_correlation": -0.2590716249022908,
+      "dispersion": 0.6429999912373743,
+      "bounded_dispersion": 0.6429999912373743,
+      "residual_fg_pat_correlation": -0.2534179738249306,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.4476853350771712,
-          "100.0": 3.4425893726637633
+          "20.0": 3.4564328812501177,
+          "100.0": 3.4512792371683103
         }
       },
-      "train_n": 2549,
+      "train_n": 2552,
       "test_n": 511
     },
     {
       "season": 2020,
       "model": "glm_coach",
-      "dispersion": 0.6307906618797879,
-      "bounded_dispersion": 0.6307906618797879,
-      "residual_fg_pat_correlation": -0.2608055169644655,
+      "dispersion": 0.6388427049802342,
+      "bounded_dispersion": 0.6388427049802342,
+      "residual_fg_pat_correlation": -0.2548016891808503,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.45179134177778,
-          "100.0": 3.445172150077015
+          "20.0": 3.460739621682143,
+          "100.0": 3.4541248972314973
         }
       },
-      "train_n": 2549,
+      "train_n": 2552,
       "test_n": 511
     },
     {
       "season": 2021,
       "model": "compound",
-      "dispersion": 0.6022182785570681,
-      "bounded_dispersion": 0.6022182785570681,
-      "residual_fg_pat_correlation": -0.25221153439296473,
+      "dispersion": 0.6006722156950454,
+      "bounded_dispersion": 0.6006722156950454,
+      "residual_fg_pat_correlation": -0.2545338023845699,
       "inner_selection": null,
-      "train_n": 3060,
-      "test_n": 540
+      "train_n": 3063,
+      "test_n": 541
     },
     {
       "season": 2021,
       "model": "glm_pool",
-      "dispersion": 0.606956682784516,
-      "bounded_dispersion": 0.606956682784516,
-      "residual_fg_pat_correlation": -0.247839988634176,
+      "dispersion": 0.608039528469211,
+      "bounded_dispersion": 0.608039528469211,
+      "residual_fg_pat_correlation": -0.24771727590614614,
       "inner_selection": null,
-      "train_n": 3060,
-      "test_n": 540
+      "train_n": 3063,
+      "test_n": 541
     },
     {
       "season": 2021,
       "model": "glm_shrink",
-      "dispersion": 0.606956682784516,
-      "bounded_dispersion": 0.606956682784516,
-      "residual_fg_pat_correlation": -0.247839988634176,
+      "dispersion": 0.608039528469211,
+      "bounded_dispersion": 0.608039528469211,
+      "residual_fg_pat_correlation": -0.24771727590614614,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.503591871181558,
-          "100.0": 3.4983866135097585
+          "20.0": 3.5068787144921423,
+          "100.0": 3.501904877089862
         }
       },
-      "train_n": 3060,
-      "test_n": 540
+      "train_n": 3063,
+      "test_n": 541
     },
     {
       "season": 2021,
       "model": "glm_coach",
-      "dispersion": 0.6023690490103557,
-      "bounded_dispersion": 0.6023690490103557,
-      "residual_fg_pat_correlation": -0.244535378982606,
+      "dispersion": 0.6031145661038233,
+      "bounded_dispersion": 0.6031145661038233,
+      "residual_fg_pat_correlation": -0.24443931922636516,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.5134518895015816,
-          "100.0": 3.504458599627665
+          "20.0": 3.517187527292319,
+          "100.0": 3.5086178655608204
         }
       },
-      "train_n": 3060,
-      "test_n": 540
+      "train_n": 3063,
+      "test_n": 541
     },
     {
       "season": 2022,
       "model": "compound",
-      "dispersion": 0.6844356413565563,
-      "bounded_dispersion": 0.6844356413565563,
-      "residual_fg_pat_correlation": -0.15153117434008798,
+      "dispersion": 0.6891186183855619,
+      "bounded_dispersion": 0.6891186183855619,
+      "residual_fg_pat_correlation": -0.14888435311747547,
       "inner_selection": null,
-      "train_n": 3600,
-      "test_n": 540
+      "train_n": 3604,
+      "test_n": 541
     },
     {
       "season": 2022,
       "model": "glm_pool",
-      "dispersion": 0.680405069775917,
-      "bounded_dispersion": 0.680405069775917,
-      "residual_fg_pat_correlation": -0.15204169630363656,
+      "dispersion": 0.684834730876253,
+      "bounded_dispersion": 0.684834730876253,
+      "residual_fg_pat_correlation": -0.14870764942605744,
       "inner_selection": null,
-      "train_n": 3600,
-      "test_n": 540
+      "train_n": 3604,
+      "test_n": 541
     },
     {
       "season": 2022,
       "model": "glm_shrink",
-      "dispersion": 0.680405069775917,
-      "bounded_dispersion": 0.680405069775917,
-      "residual_fg_pat_correlation": -0.15204169630363656,
+      "dispersion": 0.684834730876253,
+      "bounded_dispersion": 0.684834730876253,
+      "residual_fg_pat_correlation": -0.14870764942605744,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.6213971747692764,
-          "100.0": 3.6151366592890026
+          "20.0": 3.6240618547655683,
+          "100.0": 3.6178735801043125
         }
       },
-      "train_n": 3600,
-      "test_n": 540
+      "train_n": 3604,
+      "test_n": 541
     },
     {
       "season": 2022,
       "model": "glm_coach",
-      "dispersion": 0.677476776845063,
-      "bounded_dispersion": 0.677476776845063,
-      "residual_fg_pat_correlation": -0.1529959946418519,
+      "dispersion": 0.6814913905183814,
+      "bounded_dispersion": 0.6814913905183814,
+      "residual_fg_pat_correlation": -0.14974466815977044,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.628893143986976,
-          "100.0": 3.6204173462469473
+          "20.0": 3.631415649243863,
+          "100.0": 3.623261579796157
         }
       },
-      "train_n": 3600,
-      "test_n": 540
+      "train_n": 3604,
+      "test_n": 541
     },
     {
       "season": 2023,
       "model": "compound",
-      "dispersion": 0.5447793418998736,
-      "bounded_dispersion": 0.5447793418998736,
-      "residual_fg_pat_correlation": -0.2723321172842911,
+      "dispersion": 0.5526891452524995,
+      "bounded_dispersion": 0.5526891452524995,
+      "residual_fg_pat_correlation": -0.26537352514467255,
       "inner_selection": null,
-      "train_n": 4140,
-      "test_n": 542
+      "train_n": 4145,
+      "test_n": 543
     },
     {
       "season": 2023,
       "model": "glm_pool",
-      "dispersion": 0.5385303820464242,
-      "bounded_dispersion": 0.5385303820464242,
-      "residual_fg_pat_correlation": -0.272799352806202,
+      "dispersion": 0.5462355999233868,
+      "bounded_dispersion": 0.5462355999233868,
+      "residual_fg_pat_correlation": -0.2660691659792439,
       "inner_selection": null,
-      "train_n": 4140,
-      "test_n": 542
+      "train_n": 4145,
+      "test_n": 543
     },
     {
       "season": 2023,
       "model": "glm_shrink",
-      "dispersion": 0.5385303820464242,
-      "bounded_dispersion": 0.5385303820464242,
-      "residual_fg_pat_correlation": -0.272799352806202,
+      "dispersion": 0.5462355999233868,
+      "bounded_dispersion": 0.5462355999233868,
+      "residual_fg_pat_correlation": -0.2660691659792439,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.580426728235361,
-          "100.0": 3.5789348583839082
+          "20.0": 3.5866241685236027,
+          "100.0": 3.585170712020241
         }
       },
-      "train_n": 4140,
-      "test_n": 542
+      "train_n": 4145,
+      "test_n": 543
     },
     {
       "season": 2023,
       "model": "glm_coach",
-      "dispersion": 0.5337325875423002,
-      "bounded_dispersion": 0.5337325875423002,
-      "residual_fg_pat_correlation": -0.2756784603698404,
+      "dispersion": 0.5411533823871635,
+      "bounded_dispersion": 0.5411533823871635,
+      "residual_fg_pat_correlation": -0.26894015215420364,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.5813289745205488,
-          "100.0": 3.5799380108022416
+          "20.0": 3.587488321418827,
+          "100.0": 3.5864440468473653
         }
       },
-      "train_n": 4140,
-      "test_n": 542
+      "train_n": 4145,
+      "test_n": 543
     },
     {
       "season": 2024,
       "model": "compound",
-      "dispersion": 0.6732422601345476,
-      "bounded_dispersion": 0.6732422601345476,
-      "residual_fg_pat_correlation": -0.23673158672015154,
+      "dispersion": 0.6779928398951635,
+      "bounded_dispersion": 0.6779928398951635,
+      "residual_fg_pat_correlation": -0.2307807643331791,
       "inner_selection": null,
-      "train_n": 4682,
+      "train_n": 4688,
       "test_n": 543
     },
     {
       "season": 2024,
       "model": "glm_pool",
-      "dispersion": 0.6575016141929193,
-      "bounded_dispersion": 0.6575016141929193,
-      "residual_fg_pat_correlation": -0.2502700000894896,
+      "dispersion": 0.6643462702764866,
+      "bounded_dispersion": 0.6643462702764866,
+      "residual_fg_pat_correlation": -0.2452925380103764,
       "inner_selection": null,
-      "train_n": 4682,
+      "train_n": 4688,
       "test_n": 543
     },
     {
       "season": 2024,
       "model": "glm_shrink",
-      "dispersion": 0.6575016141929193,
-      "bounded_dispersion": 0.6575016141929193,
-      "residual_fg_pat_correlation": -0.2502700000894896,
+      "dispersion": 0.6643462702764866,
+      "bounded_dispersion": 0.6643462702764866,
+      "residual_fg_pat_correlation": -0.2452925380103764,
       "inner_selection": {
         "strength": 20.0,
         "inner_mae": {
-          "20.0": 3.5638684175918307,
-          "100.0": 3.5644108446836764
+          "20.0": 3.5705844913595013,
+          "100.0": 3.571275382230832
         }
       },
-      "train_n": 4682,
+      "train_n": 4688,
       "test_n": 543
     },
     {
       "season": 2024,
       "model": "glm_coach",
-      "dispersion": 0.6521716858401875,
-      "bounded_dispersion": 0.6521716858401875,
-      "residual_fg_pat_correlation": -0.24923601600184478,
+      "dispersion": 0.6586928367659924,
+      "bounded_dispersion": 0.6586928367659924,
+      "residual_fg_pat_correlation": -0.24435607340091384,
       "inner_selection": {
         "strength": 20.0,
         "inner_mae": {
-          "20.0": 3.5661417550242236,
-          "100.0": 3.566282612092854
+          "20.0": 3.5728409607647675,
+          "100.0": 3.573341987484689
         }
       },
-      "train_n": 4682,
+      "train_n": 4688,
       "test_n": 543
     },
     {
       "season": 2025,
       "model": "compound",
-      "dispersion": 0.6213216889496697,
-      "bounded_dispersion": 0.6213216889496697,
-      "residual_fg_pat_correlation": -0.2621050066864788,
+      "dispersion": 0.621816908041712,
+      "bounded_dispersion": 0.621816908041712,
+      "residual_fg_pat_correlation": -0.2637820713861099,
       "inner_selection": null,
-      "train_n": 5225,
-      "test_n": 542
+      "train_n": 5231,
+      "test_n": 543
     },
     {
       "season": 2025,
       "model": "glm_pool",
-      "dispersion": 0.6299391138662601,
-      "bounded_dispersion": 0.6299391138662601,
-      "residual_fg_pat_correlation": -0.25560406812771636,
+      "dispersion": 0.6312664693377615,
+      "bounded_dispersion": 0.6312664693377615,
+      "residual_fg_pat_correlation": -0.2555627738596407,
       "inner_selection": null,
-      "train_n": 5225,
-      "test_n": 542
+      "train_n": 5231,
+      "test_n": 543
     },
     {
       "season": 2025,
       "model": "glm_shrink",
-      "dispersion": 0.6299391138662601,
-      "bounded_dispersion": 0.6299391138662601,
-      "residual_fg_pat_correlation": -0.25560406812771636,
+      "dispersion": 0.6312664693377615,
+      "bounded_dispersion": 0.6312664693377615,
+      "residual_fg_pat_correlation": -0.2555627738596407,
       "inner_selection": {
         "strength": 100.0,
         "inner_mae": {
-          "20.0": 3.722238238836305,
-          "100.0": 3.72200993321458
+          "20.0": 3.7253229959528893,
+          "100.0": 3.725267553945108
         }
       },
-      "train_n": 5225,
-      "test_n": 542
+      "train_n": 5231,
+      "test_n": 543
     },
     {
       "season": 2025,
       "model": "glm_coach",
-      "dispersion": 0.6200117312748731,
-      "bounded_dispersion": 0.6200117312748731,
-      "residual_fg_pat_correlation": -0.25650960030603054,
+      "dispersion": 0.6211604848284621,
+      "bounded_dispersion": 0.6211604848284621,
+      "residual_fg_pat_correlation": -0.2564703458631687,
       "inner_selection": {
         "strength": 20.0,
         "inner_mae": {
-          "20.0": 3.7198274974247596,
-          "100.0": 3.7200248849299014
+          "20.0": 3.7229619346408382,
+          "100.0": 3.7233136709808003
         }
       },
-      "train_n": 5225,
-      "test_n": 542
+      "train_n": 5231,
+      "test_n": 543
     }
-  ]
+  ],
+  "evaluation_generation": [
+    "9870fdb3b23b4937aab097f1faf7a806"
+  ],
+  "quality_context": "Quality describes the completed prepared snapshot exported with this note. Frozen evaluation inputs retain their original digests; data components match, but later quality and source-manifest metadata differ."
 }

@@ -70,8 +70,16 @@ MIN_TEST_WEEKS = 8
 
 def load(processed: pathlib.Path | None = None, scoring=BASE_SCORING) -> pd.DataFrame:
     proc = processed or PROC
-    games = pd.read_parquet(proc / "kicker_games.parquet")
-    fourth = pd.read_parquet(proc / "fourth_down.parquet")
+    snapshot = None
+    if proc != PROC or (proc / "quality.json").exists():
+        import io
+        from kicker_analysis.prepare import prepared_snapshot
+        snapshot = prepared_snapshot(proc)
+        games = pd.read_parquet(io.BytesIO(snapshot["kicker_games.parquet"]))
+        fourth = pd.read_parquet(io.BytesIO(snapshot["fourth_down.parquet"]))
+    else:
+        games = pd.read_parquet(proc / "kicker_games.parquet")
+        fourth = pd.read_parquet(proc / "fourth_down.parquet")
     sched = pd.read_csv(ROOT / "data" / "external" / "games.csv", low_memory=False)
     df = games.merge(fourth, on=["season", "week", "season_type", "team"], how="left")
     df = df[(df.season >= FIRST_SEASON) & (df.season_type == "REG")].copy()
@@ -79,8 +87,9 @@ def load(processed: pathlib.Path | None = None, scoring=BASE_SCORING) -> pd.Data
     df["fantasy_points"] = scoring.points(df)
     df = build_features(df, games=sched)
     coaches = proc / "coach_history.parquet"
-    if coaches.exists():
-        df = df.merge(pd.read_parquet(coaches).drop(columns=["coach"]), on=["season", "week", "team"],
+    if snapshot or coaches.exists():
+        coach_data = pd.read_parquet(io.BytesIO(snapshot["coach_history.parquet"])) if snapshot else pd.read_parquet(coaches)
+        df = df.merge(coach_data.drop(columns=["coach"]), on=["season", "week", "team"],
                       how="left", validate="many_to_one")
     return df
 

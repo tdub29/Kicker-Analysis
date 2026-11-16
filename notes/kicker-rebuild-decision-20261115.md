@@ -8,9 +8,9 @@ the reference predicts better than every richer model.
 ## Corrected population and evaluation
 
 The historical 2018-2025 denominator is 4,254 played team-games. The conditional
-placekicker cohort contains 4,234 team-games, including 39 evidence-classified
-active zero-attempt games. Twenty team-games remain outside that cohort: seven
-emergency/unknown-role, seven special-teams-only with unresolved placekicker
+placekicker cohort contains 4,240 team-games, including 45 evidence-classified
+active zero-attempt games. Fourteen team-games remain outside that cohort: seven
+emergency/unknown-role, one special-teams-only with unresolved placekicker
 role, and six without verified kicker identity/participation. Those cases remain
 in the ledger. Current roster status was not used as historical availability.
 
@@ -32,19 +32,24 @@ Results are in [summary](kicker-rebuild-summary-20261115.csv),
 
 | Method | MAE, points | Observed-pair gain over market, points | CRPS |
 |---|---:|---:|---:|
-| Market reference | 3.619 | reference | not a distribution |
-| Corrected ridge | 3.600 | 0.084 | not a distribution |
-| Pooled GLM | 3.614 | 0.056 | 2.537 |
-| Partially pooled conversion GLM | 3.614 | 0.068 | 2.534 |
-| Coach/range GLM | 3.615 | 0.063 | 2.532 |
-| Training empirical distribution | not a point forecast here | not a ranking policy | 2.568 |
+| Market reference | 3.624 | reference | not a distribution |
+| Corrected ridge | 3.604 | 0.082 | not a distribution |
+| Pooled GLM | 3.620 | 0.052 | 2.542 |
+| Partially pooled conversion GLM | 3.620 | 0.066 | 2.539 |
+| Coach/range GLM | 3.620 | 0.058 | 2.536 |
+| Training empirical distribution | not a point forecast here | not a ranking policy | 2.572 |
 
-The ridge's season-level 95% interval for the observed-pair gain is -0.006 to
-0.175 points. These intervals and p-values are exploratory after repeated
+The ridge's season-level 95% interval for the observed-pair gain is -0.005 to
+0.169 points. These intervals and p-values are exploratory after repeated
 inspection of 2018-2025; they do not remove adaptive selection bias. Coach/range
 features improve descriptive distribution scores slightly, but do not improve
 MAE over the pooled candidate. No conditional-calibration or practical-policy
 superiority claim follows from that small difference.
+
+These numbers supersede the initial 4,234-row rebuild after the additional DQ
+review restored six evidenced veteran zero games and corrected coach-choice
+classification/structural-zero rows. The candidate ladder and inner tuning rules
+were unchanged. The dated protocol amendment preceded this corrected run.
 
 Historical feasible rosters/free-agent sets are unavailable. Random observed
 pairs cannot test the charter's 0.25-point net gain criterion on real decisions.

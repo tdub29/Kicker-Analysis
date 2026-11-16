@@ -18,6 +18,8 @@ import sys
 import warnings
 import hashlib
 import io
+import re
+import unicodedata
 from datetime import datetime, timezone
 
 import numpy as np
@@ -177,13 +179,22 @@ def drop_released(ks: pd.DataFrame, roster: pathlib.Path | None, raw_bytes=None)
     except ValueError as exc:
         print(f"{roster.name} is not valid JSON ({exc}): roster read from game history only")
         return ks
-    teams: dict[str, set] = {}
+    def name_key(value):
+        value = unicodedata.normalize("NFKD", str(value)).encode("ascii", "ignore").decode().lower()
+        parts = re.sub(r"[.'’-]", "", value.replace(".", " ")).split()
+        return (parts[0][:1], "".join(parts[1:])) if len(parts) > 1 else (value, "")
+    teams: dict[tuple, set] = {}
+    ids = {}
     for p in raw.get("players", raw).values():
         if isinstance(p, dict) and p.get("position") == "K":
-            key = f"{(p.get('first_name') or '')[:1]}.{p.get('last_name') or ''}"
+            key = name_key(f"{p.get('first_name') or ''} {p.get('last_name') or ''}")
             teams.setdefault(key, set()).add({"LAR": "LA"}.get(p.get("team"), p.get("team")))
-    gone = ks.apply(lambda r: r.player_display_name in teams
-                    and r.team not in teams[r.player_display_name], axis=1)
+            if p.get("gsis_id"):
+                ids.setdefault(str(p["gsis_id"]), set()).add({"LAR": "LA"}.get(p.get("team"), p.get("team")))
+    def released(row):
+        current = ids.get(str(row.player_id), teams.get(name_key(row.player_display_name)))
+        return current is not None and row.team not in current
+    gone = ks.apply(released, axis=1)
     if gone.any():
         print(f"not on that roster per Sleeper, dropped: "
               f"{', '.join(ks[gone].player_display_name + ' (' + ks[gone].team + ')')}")
@@ -348,8 +359,14 @@ def run(week_override: int | None = None, force: bool = False,
     proc = processed or ROOT / "data/processed/rebuilt"
     if not (proc / "quality.json").exists():
         raise ValueError("run prepare.py first; corrected participation/scoring inputs are required")
-    hist = pd.read_parquet(snapshot(proc / "kicker_games.parquet"))
-    fourth = pd.read_parquet(snapshot(proc / "fourth_down.parquet"))
+    from kicker_analysis.prepare import prepared_snapshot
+    prepared = prepared_snapshot(proc)
+    quality = json.loads(prepared["quality.json"])
+    for name, blob in prepared.items():
+        path_read = proc / name if name == "quality.json" else proc / quality["generation"] / name
+        consumed[path_read] = hashlib.sha256(blob).hexdigest()
+    hist = pd.read_parquet(io.BytesIO(prepared["kicker_games.parquet"]))
+    fourth = pd.read_parquet(io.BytesIO(prepared["fourth_down.parquet"]))
     hist = hist.merge(fourth, on=["season", "week", "season_type", "team"], how="left")
     hist = hist[(hist.season >= FIRST_SEASON) & (hist.season_type == "REG")].copy()
 

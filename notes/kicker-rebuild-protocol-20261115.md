@@ -1,5 +1,23 @@
 # Kicker rebuild executable research protocol
 
+## Dated DQ amendment before the next comparison
+
+Additional independent DQ review on2026-11-15 found six evidenced veteran zero
+games excluded by latest-same-team role. Admit prior-career placekickers with
+positive current K participation and no other current regular attempter; retain
+punter, kickoff-specialist and ambiguous-role vetoes. Pregame availability remains
+unreconstructed. Fix release-name normalization, live snapshot expiry and weather
+observation support. Publish prepared files as immutable generations with one
+completion manifest validated by consumers.
+
+Exclude every aborted snap from the declared clean competitive decision cohort,
+without relabeling failed offensive snaps as kicks. Actual FG/punt attempt flags
+take precedence over subsequent recovery pass/rush flags. Retain structural-zero
+team-games with zero counts and undefined rates. This corrects known data defects,
+not a search for better model metrics. Preserve the same finite model ladder,
+inner tuning and exploratory-only historical inference. Retain earlier runs as
+superseded versions; the next comparison uses the amended data.
+
 Frozen before new model fits on 2026-11-15. Trevor resumed implementation after
 the book scout repair and specifically requested coach go/kick tendencies and
 55+ yard willingness. All 2018-2025 comparisons remain exploratory.
