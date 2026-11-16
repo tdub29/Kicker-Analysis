@@ -45,11 +45,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Build the kicker-game table
-        run: python src/kicker_analysis/build_dataset.py
-
-      - name: Build the fourth-down table
-        run: python src/kicker_analysis/fourth_down.py
+      - name: Prepare the completed kicker-data generation
+        run: python src/kicker_analysis/prepare.py --refresh
 
       - name: Build the board
         run: python src/kicker_analysis/predict_week.py --max-days-ahead 6

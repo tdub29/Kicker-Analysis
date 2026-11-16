@@ -19,7 +19,7 @@ from sklearn.pipeline import make_pipeline
 
 from kicker_analysis.model import load, RidgeRanker, CompoundKickerModel, GlmKickerModel
 from kicker_analysis.scoring import load_scoring
-from kicker_analysis.prepare import DEFAULT_OUT
+from kicker_analysis.prepare import DEFAULT_OUT, prepared_snapshot
 from kicker_analysis.backtest import weekly_lifts, season_tests
 
 
@@ -60,9 +60,8 @@ def run(processed, scoring_path, out):
         raise ValueError("evaluation identity already exists; use a new run directory")
     identity = {"status": "frozen-before-fit", "scoring_snapshot": hashlib.sha256(scoring_path.read_bytes()).hexdigest(),
         "protocol": hashlib.sha256((Path(__file__).parents[2] / "notes/kicker-rebuild-protocol-20261115.md").read_bytes()).hexdigest(),
-        "inputs": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in
-            [processed / "kicker_games.parquet", processed / "fourth_down.parquet",
-             processed / "coach_history.parquet", Path(__file__).parents[2] / "data/external/games.csv"]},
+        "inputs": {**{name: hashlib.sha256(blob).hexdigest() for name, blob in prepared_snapshot(processed).items()},
+            "games.csv": hashlib.sha256((Path(__file__).parents[2] / "data/external/games.csv").read_bytes()).hexdigest()},
         "source": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in Path(__file__).parent.glob("*.py")}}
     (out / "run-inputs.json").write_text(json.dumps(identity, indent=2) + "\n")
     scoring = load_scoring(scoring_path)
@@ -147,9 +146,8 @@ def run(processed, scoring_path, out):
     pd.DataFrame(summary).to_csv(out / "summary.csv", index=False)
     pd.DataFrame(comparisons).to_csv(out / "season_comparisons.csv", index=False)
     lifts.to_csv(out / "weekly_pair_diagnostics.csv", index=False)
-    inputs_after = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in
-        [processed / "kicker_games.parquet", processed / "fourth_down.parquet",
-         processed / "coach_history.parquet", Path(__file__).parents[2] / "data/external/games.csv"]}
+    inputs_after = {**{name: hashlib.sha256(blob).hexdigest() for name, blob in prepared_snapshot(processed).items()},
+        "games.csv": hashlib.sha256((Path(__file__).parents[2] / "data/external/games.csv").read_bytes()).hexdigest()}
     source_after = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in Path(__file__).parent.glob("*.py")}
     protocol_after = hashlib.sha256((Path(__file__).parents[2] / "notes/kicker-rebuild-protocol-20261115.md").read_bytes()).hexdigest()
     if (identity["inputs"] != inputs_after or identity["source"] != source_after

@@ -10,6 +10,8 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import hashlib
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -18,11 +20,36 @@ import pandas as pd
 
 from kicker_analysis.build_dataset import (
     ROOT, CACHE, RELEASE, KEEP, ATT_BUCKETS, LONG_COLS, RELOCATIONS, kicking_from_pbp,
-    fetch, pbp_file, team_game_context, normalise_games, write_manifest, load_games)
+    fetch, pbp_file, team_game_context, normalise_games, write_manifest, load_games,
+    LIVE_MAX_AGE_HOURS, season_settled, _write_atomic)
 from kicker_analysis.fourth_down import COLS, fourth_down_plays, team_game_rates
 from kicker_analysis.scoring import BASE_SCORING
 
 DEFAULT_OUT = ROOT / "data/processed/rebuilt"
+
+
+def prepared_snapshot(directory):
+    """Read one completed generation. Partial or changed generations fail closed."""
+    directory = Path(directory)
+    raw = (directory / "quality.json").read_bytes()
+    meta = json.loads(raw)
+    relative = meta.get("generation")
+    expected = meta.get("prepared_sha256", {})
+    if not relative or not {"kicker_games.parquet", "fourth_down.parquet", "coach_history.parquet"} <= set(expected):
+        raise ValueError("run prepare.py; no completed bound data generation")
+    generation = (directory / relative).resolve()
+    if not generation.is_relative_to(directory.resolve()):
+        raise ValueError("prepared generation escapes data directory")
+    result = {"quality.json": raw}
+    for name, digest in expected.items():
+        path = (generation / name).resolve()
+        if not path.is_relative_to(generation):
+            raise ValueError("prepared file escapes generation")
+        blob = path.read_bytes()
+        if hashlib.sha256(blob).hexdigest() != digest:
+            raise ValueError(f"incomplete or modified data generation: {name}")
+        result[name] = blob
+    return result
 
 
 def participation(kicks, snaps, players, context):
@@ -59,12 +86,10 @@ def participation(kicks, snaps, players, context):
     zero["known_placekicker"] = False
     for index, row in zero.iterrows():
         clock = int(row.season) * 100 + int(row.week)
-        prior = regular[(regular.team == row.team)
-                        & ((regular.season * 100 + regular.week) < clock)]
-        latest = prior.sort_values(["season", "week"]).tail(1)
+        prior_career = regular[(regular.player_id == row.player_id)
+                               & ((regular.season * 100 + regular.week) < clock)]
         current = regular[regular.game_id.eq(row.game_id) & regular.team.eq(row.team)]
-        zero.loc[index, "known_placekicker"] = (current.empty and not latest.empty
-            and latest.iloc[0].player_id == row.player_id)
+        zero.loc[index, "known_placekicker"] = current.empty and not prior_career.empty
     zero = zero[["season", "week", "game_type", "team", "player_id", "snap_name", "known_placekicker"]].rename(
         columns={"game_type": "season_type", "snap_name": "player_display_name"})
     for c in set(KEEP + ATT_BUCKETS + LONG_COLS) - set(zero):
@@ -79,6 +104,9 @@ def participation(kicks, snaps, players, context):
     n = out[role].groupby(["game_id", "team"]).size()
     out["regular_kickers_in_game"] = pd.MultiIndex.from_frame(out[["game_id", "team"]]).map(n)
     out["model_eligible"] = role & out.regular_kickers_in_game.eq(1)
+    emergency_keys = pd.MultiIndex.from_frame(out.loc[
+        out.participation_status.eq("emergency_or_unknown_role"), ["game_id", "team"]])
+    out["emergency_kicking_context"] = pd.MultiIndex.from_frame(out[["game_id", "team"]]).isin(emergency_keys)
     out.loc[role & out.regular_kickers_in_game.gt(1),
             "participation_status"] = "multiple_regular_kickers"
     ledger = context[["season", "week", "game_id", "team"]].merge(
@@ -154,6 +182,8 @@ def coach_history(pbp, context):
 
 
 def build(destination: Path = DEFAULT_OUT, first=2015, last=None, refresh=False):
+    published = destination
+    destination = published / "generations" / uuid.uuid4().hex
     destination.mkdir(parents=True, exist_ok=True)
     # The existing snapshot is preserved; live acquisition is an explicit builder task.
     games = (load_games() if refresh else normalise_games(
@@ -165,15 +195,25 @@ def build(destination: Path = DEFAULT_OUT, first=2015, last=None, refresh=False)
     coach_map = pd.concat([games[["game_id", side + "_team", side + "_coach"]].rename(
         columns={side + "_team": "team", side + "_coach": "coach"}) for side in ["home", "away"]])
     context = context.merge(coach_map, on=["game_id", "team"], validate="one_to_one")
-    players = pd.read_csv(fetch(f"{RELEASE}/players/players.csv", "players.csv"), low_memory=False)
-    kicks, snaps, plays, missing = [], [], [], {}
+    players = pd.read_csv(fetch(f"{RELEASE}/players/players.csv", "players.csv",
+                                max_age_hours=24.), low_memory=False)
+    kicks, snaps, plays, missing, snap_coverage = [], [], [], {}, {}
     for season in range(first, last + 1):
         kicks.append(kicking_from_pbp(season, include_distances=True))
-        columns = list(dict.fromkeys(COLS + ["home_team", "home_coach", "away_coach"]))
+        columns = list(dict.fromkeys(COLS + ["home_team", "home_coach", "away_coach", "play_id", "desc"]))
         plays.append(pd.read_parquet(pbp_file(season), columns=columns))
         name = f"snap_counts_{season}.parquet"
+        cached = CACHE / name
+        provisional = not (cached.exists() and season_settled(season, cached.stat().st_mtime))
         try:
-            snaps.append(pd.read_parquet(fetch(f"{RELEASE}/snap_counts/{name}", name)))
+            frame = pd.read_parquet(fetch(f"{RELEASE}/snap_counts/{name}", name,
+                max_age_hours=LIVE_MAX_AGE_HOURS if provisional else None))
+            snaps.append(frame)
+            expected = set(context.loc[context.season.eq(season), "game_id"])
+            available = set(frame.loc[frame.game_type.eq("REG"), "game_id"])
+            snap_coverage[str(season)] = {"played_games": len(expected),
+                "covered_games": len(expected & available),
+                "missing_games": sorted(expected - available)}
         except Exception as exc:
             missing[str(season)] = f"{type(exc).__name__}: {str(exc)[:160]}"
     kicks = pd.concat(kicks, ignore_index=True)
@@ -214,12 +254,23 @@ def build(destination: Path = DEFAULT_OUT, first=2015, last=None, refresh=False)
         "participation": out.participation_status.value_counts().to_dict(),
         "unresolved_team_games": int(ledger.statuses.eq("unresolved_no_verified_kicker").sum()),
         "unmatched_snap_identities": len(unmatched), "missing_snap_sources": missing,
+        "snap_coverage": snap_coverage,
         "historical_availability": "unavailable: participation is not pregame eligibility",
         "wind": "unknown retained; no historical forecast vintage supplied",
         "coach": "context-adjusted and prior-week only; reconstructed assignment, no publication vintage",
         "long_menu": "yardline+17 is a proxy, not actual kick distance; +/-1-yard boundary sensitivity retained"}
-    (destination / "quality.json").write_text(json.dumps(report, indent=2) + "\n")
     write_manifest(destination / "data_manifest.json")
+    manifest = json.loads((destination / "data_manifest.json").read_text())
+    report["participation_source_freshness"] = {r["name"]: r["fetched_utc"]
+        for r in manifest["inputs"] if r["name"].startswith("snap_counts_") or r["name"] == "players.csv"}
+    report["generation"] = destination.relative_to(published).as_posix()
+    report["prepared_sha256"] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sorted(destination.iterdir()) if p.is_file()}
+    metadata = (json.dumps(report, indent=2) + "\n").encode()
+    _write_atomic(destination / "quality.json", metadata)
+    # The pointer moves only after all generation files and their digests exist.
+    # Previous complete directories survive an interruption or failed refresh.
+    _write_atomic(published / "quality.json", metadata)
     print(json.dumps(report, indent=2))
     return out
 

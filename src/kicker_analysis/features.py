@@ -130,14 +130,20 @@ def stadium_climate(games: pd.DataFrame) -> pd.DataFrame:
     g["venue"] = g.stadium_id.fillna(g.stadium).fillna(g.home_team)
     keep = g[["season", "month", "venue", "temp", "wind"]].dropna(subset=["venue", "month"])
     per = (keep.groupby(["venue", "month", "season"])
-               .agg(temp=("temp", "mean"), wind=("wind", "mean"), n=("temp", "size"))
+               .agg(temp=("temp", "mean"), wind=("wind", "mean"), n=("temp", "size"),
+                    temp_n=("temp", "count"), wind_n=("wind", "count"))
                .reset_index().sort_values(["venue", "month", "season"]))
     grp = per.groupby(["venue", "month"], sort=False)
     for src, dst in (("temp", "venue_temp_climate"), ("wind", "venue_wind_climate")):
         per[dst] = grp[src].transform(lambda s: s.shift(1).expanding().mean())
     per["venue_climate_n"] = grp["n"].transform(lambda s: s.shift(1).expanding().sum())
+    per["venue_games_prior"] = per["venue_climate_n"]  # compatibility: game count, not weather evidence
+    for variable in ("temp", "wind"):
+        per[f"venue_{variable}_observations_prior"] = grp[f"{variable}_n"].transform(
+            lambda s: s.shift(1).expanding().sum())
     return per[["venue", "month", "season", "venue_temp_climate",
-                "venue_wind_climate", "venue_climate_n"]]
+                "venue_wind_climate", "venue_climate_n", "venue_games_prior",
+                "venue_temp_observations_prior", "venue_wind_observations_prior"]]
 
 
 def stadium_types(games: pd.DataFrame) -> dict:
@@ -295,7 +301,9 @@ def build_features(df: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.Da
 
 def feature_columns(df: pd.DataFrame) -> list[str]:
     banned = set(OUTCOME_COLS) | set(SERVE_TIME_UNAVAILABLE) | {
-        "season", "week", "game_order", "fg_blocked", "pat_missed", "fg_pct"}
+        "season", "week", "game_order", "fg_blocked", "pat_missed", "fg_pct",
+        "model_eligible", "regular_kickers_in_game", "known_placekicker",
+        "emergency_kicking_context"}
     return sorted(c for c in df.columns
                   if c not in banned and pd.api.types.is_numeric_dtype(df[c]))
 

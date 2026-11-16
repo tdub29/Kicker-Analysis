@@ -9,9 +9,9 @@ saw this at all.
 What counts as a decision, and why each filter is here:
 
   in range      `yardline_100` <= 38, which is a 55-yard attempt after the seven
-                yards of snap and hold. Beyond that the field goal is not really
-                on the menu, so including those plays measures leg strength, not
-                coaching.
+                yards of snap and hold. This is the legacy narrow feature cohort,
+                not a claim that longer field goals are unavailable. prepare.py
+                also builds extended, explicitly proxy-based long-kick menus.
   competitive   win probability between 5% and 95%. A four-score game is not a
                 choice, and garbage time would otherwise read as aggression.
   not a scramble for the clock
@@ -83,7 +83,7 @@ MIN_TEAM_GAME_SHARE = 0.70
 COLS = ["season", "week", "season_type", "game_id", "posteam", "down", "ydstogo",
         "yardline_100", "play_type", "field_goal_attempt", "punt_attempt",
         "rush_attempt", "pass_attempt", "wp", "half_seconds_remaining",
-        "score_differential", "field_goal_result", "kick_distance"]
+        "score_differential", "field_goal_result", "kick_distance", "aborted_play"]
 
 # Same franchise collapse the rest of the pipeline uses.
 RELOCATIONS = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
@@ -96,11 +96,14 @@ def fourth_down_plays(pbp: pd.DataFrame, min_yardline: int = 0,
     d = d[d.yardline_100.between(min_yardline, max_yardline)]
     d = d[d.wp.between(WP_LO, WP_HI)]
     d = d[d.half_seconds_remaining > MIN_HALF_SECONDS]
+    if "aborted_play" in d:
+        d = d[~d.aborted_play.eq(1)]
     # A play must be one of the three real options. Penalties, timeouts and
     # aborted snaps are not decisions and would dilute both rates.
     d["is_fg"] = (d.field_goal_attempt == 1).astype(int)
     d["is_punt"] = (d.punt_attempt == 1).astype(int)
-    d["is_go"] = ((d.rush_attempt == 1) | (d.pass_attempt == 1)).astype(int)
+    d["is_go"] = (((d.rush_attempt == 1) | (d.pass_attempt == 1))
+                   & d.is_fg.eq(0) & d.is_punt.eq(0)).astype(int)
     d = d[(d.is_fg + d.is_punt + d.is_go) == 1]
     d = d[~d.play_type.eq("no_play")]
     d["posteam"] = d.posteam.replace(RELOCATIONS)
@@ -122,6 +125,11 @@ def team_game_rates(pbp: pd.DataFrame) -> pd.DataFrame:
         fourth_mean_togo=("ydstogo", "mean"),
     ).reset_index()
     out = out.rename(columns={"posteam": "team"})
+    grid = pbp[pbp.posteam.notna()][key].drop_duplicates().rename(columns={"posteam": "team"})
+    grid["team"] = grid.team.replace(RELOCATIONS)
+    out = grid.merge(out, on=["season", "week", "season_type", "team"], how="left", validate="one_to_one")
+    count_columns = ["fourth_in_range", "fourth_fg", "fourth_go", "fourth_punt"]
+    out[count_columns] = out[count_columns].fillna(0)
     n = out.fourth_in_range.replace(0, np.nan)
     out["fg_share"] = out.fourth_fg / n
     out["go_rate"] = out.fourth_go / n
@@ -191,7 +199,7 @@ def self_check() -> int:
                 half_seconds_remaining=600, score_differential=0,
                 play_type="field_goal", field_goal_attempt=0, punt_attempt=0,
                 rush_attempt=0, pass_attempt=0, field_goal_result=None,
-                kick_distance=None)
+                kick_distance=None, aborted_play=0)
     rows = [
         {**base, "field_goal_attempt": 1},                       # kept, a FG
         {**base, "rush_attempt": 1},                             # kept, a go
@@ -201,7 +209,7 @@ def self_check() -> int:
         {**base, "rush_attempt": 1, "half_seconds_remaining": 40},  # dropped, clock
         {**base, "down": 3, "field_goal_attempt": 1},            # dropped, not 4th
         {**base},                                                # dropped, no option set
-        {**base, "field_goal_attempt": 1, "rush_attempt": 1},    # dropped, ambiguous
+        {**base, "field_goal_attempt": 1, "punt_attempt": 1},    # dropped, ambiguous kick type
     ]
     d = pd.DataFrame(rows)
     plays = fourth_down_plays(d)
