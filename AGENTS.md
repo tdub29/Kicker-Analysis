@@ -2,6 +2,8 @@
 
 Read README.md and METHOD.md before changes. Preserve season-forward validation, negative findings and uncertainty; engineering completion does not establish predictive edge.
 
+Model changes (ridge, count model, P(k+) thresholds, features, board scoring) follow `../.agents/rules/predictive-modeling-process.md`; the registry and claim register are `../.agents/model-records/kicker-analysis/MODEL-REGISTRY.md`, and the season is the replication unit. README, METHOD and portfolio numbers are copied from the registry's primary claims; presentation sessions push no model code.
+
 <!-- SPARE-LAPTOP:BEGIN (managed by .agents/scripts/sync-spare-laptop.py) -->
 - **Open-source delegation:** "osm" / "OSM" (open-source models), "use open source", "use a local model", "spare laptop", and "other laptop" route directly to `python "C:/Users/TrevorWhite/Downloads/Big Projects/.agents/scripts/spare-llm.py" --prompt-file "<task.txt>" --input-file "<context.txt>" --output "<answer.txt>"`. Omit optional input/output flags when unnecessary. Default Qwen handles code/tests; `--model deepseek-r1:7b` handles reasoning; `--ping` checks access. Text inference only: coordinator supplies context, runs tools and verifies results. Report failures; no paid fallback. Open-source software research and OpenStreetMap requests alone do not trigger delegation.
 <!-- SPARE-LAPTOP:END -->
@@ -47,7 +49,8 @@ Choose **solo**, **subagents**, **workflow** or **loop** per [`../.agents/rules/
 **Judgment needs a fitting skill and independent review.**
 
 - **Use a fitting skill before starting.** If unknown, use `scout-skills` (`mid` | `high` | `max`). Fill real gaps with complete local bundles.
-- **Independent verdicts.** Rankings, design choices, exploitability and numbers reaching people need a reviewer who did not produce them.
+- **Model changes run the gates.** A model change fits, re-weights, re-targets, re-labels, replaces or newly shows a score, rating, probability, projection, rank order, signal or allocation (site JS, notebook, handoff, caption, resume, money). Before scoring, load `predictive-modeling` and write the pre-fit record ([rule](../.agents/rules/predictive-modeling-process.md)); unreviewed, it is research: not shown, merged or quoted. Simple layout/CSS/copy edits ship unchanged; friction rules (node --check, no unrequested QA, `ponytail:` ceilings) cover them only.
+- **Independent verdicts.** Rankings, design choices, exploitability and numbers reaching people need a reviewer who did not build, brief, dispatch or merge them, given artifacts at a commit and the acceptance rule, maker numbers only as claims to refute. Review precedes push, deploy, quote or action; a finding closes on evidence plus re-review, or by Trevor told the failed check first.
 - **Breadth gets workers.** Three or more independent shards, each with its own proof: one worker per shard, then deterministic synthesis. Count actual work, including bundle fetch, mirrors and hashes, not just items.
 - **Trivial work stays solo.** Cost gates still apply.
 
